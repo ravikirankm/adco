@@ -5,7 +5,6 @@
 	<classpathentry exported="true" kind="con" path="com.android.ide.eclipse.adt.DEPENDENCIES"/>
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="src" path="gen"/>
-	<classpathentry kind="lib" path="/home/ravi/Projects/adco/app/google-play-services_lib/libs/google-play-services.jar"/>
 	<classpathentry kind="lib" path="libs/commons-net-3.3.jar"/>
 	<classpathentry kind="output" path="bin/classes"/>
 </classpath>
