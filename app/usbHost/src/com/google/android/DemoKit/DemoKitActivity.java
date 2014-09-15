@@ -351,6 +351,7 @@ public class DemoKitActivity extends Activity implements Runnable {
 
 		unregisterReceiver(mUsbReceiver);
 		unregisterReceiver(mConnReceiver);
+		mAccessoryController.closeAccessory();
 		
 		super.onDestroy();
 	}

@@ -98,14 +98,15 @@ public class MegaADKController extends AccessoryController implements Runnable {
 		
 	}
 	
-	private void getCmdRspPacket(AccessoryPacket rsp){
-		byte [] buffer = new byte[16384];
-		int status = usbRead(buffer);
+	private void getCmdRspPacket(AccessoryPacket req, AccessoryPacket rsp){
+		byte [] buffer = new byte[1];
+		int status = 0;
+		status = usbRead(buffer);
 		if(status > 0) {
 			int length = status;
 			int readPtr = 0;
 			int i;
-			rsp = new AccessoryPacket();
+/*			rsp = new AccessoryPacket();
 			Toast.makeText(mHostActivity, "Got CMD response from Accessory of length " + length, Toast.LENGTH_SHORT).show();
 			rsp.cmd = buffer[0];
 			rsp.length = buffer[1] | (buffer[2] << 8) | (buffer[3] << 16) | (buffer[4] << 24);
@@ -115,7 +116,7 @@ public class MegaADKController extends AccessoryController implements Runnable {
 			}
 			readPtr = readPtr + i;
 			rsp.crc = buffer[readPtr] + (buffer[readPtr + 1] << 8); 
-		}
+*/		}
 	}
 	
 	@Override
@@ -124,9 +125,9 @@ public class MegaADKController extends AccessoryController implements Runnable {
 		switch(req.cmd) {
 		case (USB_CMD_GET_ALIVENESS):
 			sendCmdPacket(req);
-			getCmdRspPacket(rsp);
+			getCmdRspPacket(req, rsp);
 			break;
-		case (USB_CMD_SET_SETTINGS):
+/*		case (USB_CMD_SET_SETTINGS):
 			sendCmdPacket(req);
 			getCmdRspPacket(rsp);
 			break;
@@ -149,7 +150,7 @@ public class MegaADKController extends AccessoryController implements Runnable {
 			sendCmdPacket(req);
 			getCmdRspPacket(rsp);
 			break;
- 		}
+*/ 		}
 		
 		return false;
 	}
@@ -157,19 +158,21 @@ public class MegaADKController extends AccessoryController implements Runnable {
 	public void run() {
 
 		if(!mAccessoryReady) {
-			Toast.makeText(mHostActivity, "USB Accessory is not ready", Toast.LENGTH_SHORT).show();
+//			Toast.makeText(mHostActivity, "USB Accessory is not ready", Toast.LENGTH_SHORT).show();
+			mHostActivity.toastHandler("USB Accessory is not ready");
 			return;
 		}
 
-		Toast.makeText(mHostActivity, "Invoking USB Accessory State Machine", Toast.LENGTH_SHORT).show();
-		
+//		Toast.makeText(mHostActivity, "Invoking USB Accessory State Machine", Toast.LENGTH_SHORT).show();
+		mHostActivity.toastHandler("Invoking USB Accessory State Machine");
 		while(true) {
 		
 			switch (curr_state) {
 		
 			case(USB_STATE_IDLE):
 				next_state = USB_STATE_CHECK_ALIVENESS;
-				Toast.makeText(mHostActivity, "USB state machine STATE_IDLE", Toast.LENGTH_SHORT).show();
+//				Toast.makeText(mHostActivity, "USB state machine STATE_IDLE", Toast.LENGTH_SHORT).show();
+				mHostActivity.toastHandler("USB state machine STATE_IDLE");
 				break;
 			
 			case(USB_STATE_CHECK_ALIVENESS) :
@@ -178,17 +181,20 @@ public class MegaADKController extends AccessoryController implements Runnable {
 				req.cmd = USB_CMD_GET_ALIVENESS;
 				req.length = 0;
 
-				Toast.makeText(mHostActivity, "USB state machine STATE_CHECK_ALIVENESS", Toast.LENGTH_SHORT).show();
-			
+//				Toast.makeText(mHostActivity, "USB state machine STATE_CHECK_ALIVENESS", Toast.LENGTH_SHORT).show();
+				mHostActivity.toastHandler("USB state machine STATE_CHECK_ALIVENESS");
 				initiateHostXfer(req, rsp);
 				// Check if we got a successful response from Accessory
 				if(rsp != null) {
 
-					Toast.makeText(mHostActivity, "Got Rsp of " + rsp.cmd + " - Length: " + rsp.length + ", CRC: " + rsp.crc, Toast.LENGTH_SHORT).show();
+//					Toast.makeText(mHostActivity, "Got Rsp of " + rsp.cmd + " - Length: " + rsp.length + ", CRC: " + rsp.crc, Toast.LENGTH_SHORT).show();
+					mHostActivity.toastHandler("Got Rsp of " + rsp.cmd + " - Length: " + rsp.length + ", CRC: " + rsp.crc);
 					
 					// check if we got an error response
 					if(rsp.cmd == USB_CMD_ERROR) {
-						Toast.makeText(mHostActivity, "Got error response from Accessory", Toast.LENGTH_SHORT).show();
+			//			Toast.makeText(mHostActivity, "Got error response from Accessory", Toast.LENGTH_SHORT).show();
+						mHostActivity.toastHandler("Got error response from Accessory");
+						
 						break;
 					}
 					if((rsp.payld[0] & USB_STATUS_DATA_AVAILABLE_MASK) != 0) {
@@ -213,7 +219,9 @@ public class MegaADKController extends AccessoryController implements Runnable {
 	public void openAccessory() {
 		// if accessory is already connected, no need to do anything just return
 		if (mInputStream != null && mOutputStream != null) {
-			Toast.makeText(mHostActivity, "IO streams are non-null returning", Toast.LENGTH_SHORT).show();
+//			Toast.makeText(mHostActivity, "IO streams are non-null returning", Toast.LENGTH_SHORT).show();
+			mHostActivity.toastHandler("IO streams are non-null returning");
+			
 			return;
 		}
 		
@@ -226,20 +234,22 @@ public class MegaADKController extends AccessoryController implements Runnable {
 		
 		if (accessory != null) {
 			if (mUsbManager.hasPermission(accessory)) {
-				Toast.makeText(mHostActivity, "Opening accessory", Toast.LENGTH_SHORT).show();
+//				Toast.makeText(mHostActivity, "Opening accessory", Toast.LENGTH_SHORT).show();
+				mHostActivity.toastHandler("Opening accessory");
 				openAccessoryIO(accessory);
 			} else {
 //				synchronized (mUsbReceiver) {
 				PendingIntent mPermissionIntent = PendingIntent.getBroadcast(mHostActivity, 0, new Intent(
 						DemoKitActivity.ACTION_USB_PERMISSION), 0);
 
-				Toast.makeText(mHostActivity, "Requesting Permission", Toast.LENGTH_SHORT).show();
-						mUsbManager.requestPermission(accessory,
-								mPermissionIntent);
+//				Toast.makeText(mHostActivity, "Requesting Permission", Toast.LENGTH_SHORT).show();
+				mHostActivity.toastHandler("Requesting Permission");
+				mUsbManager.requestPermission(accessory, mPermissionIntent);
 //				}
 			}
 		} else {
-			Toast.makeText(mHostActivity, "Accessory is null", Toast.LENGTH_SHORT).show();
+//			Toast.makeText(mHostActivity, "Accessory is null", Toast.LENGTH_SHORT).show();
+			mHostActivity.toastHandler("Accessory is null");
 		}
 		
 	}
@@ -248,7 +258,8 @@ public class MegaADKController extends AccessoryController implements Runnable {
 		
 		if(mFileDescriptor == null) {
 			mFileDescriptor = mUsbManager.openAccessory(accessory);
-			Toast.makeText(mHostActivity, "Obtaining new File Descriptor from UsbManager", Toast.LENGTH_SHORT).show();
+//			Toast.makeText(mHostActivity, "Obtaining new File Descriptor from UsbManager", Toast.LENGTH_SHORT).show();
+			mHostActivity.toastHandler("Obtaining new File Descriptor from UsbManager");
 		}
 
 		if (mFileDescriptor != null) {
@@ -259,7 +270,8 @@ public class MegaADKController extends AccessoryController implements Runnable {
 			mAccessoryReady = true;
 			mHostActivity.enableControls(true);
 		} else {
-			Toast.makeText(mHostActivity, "File Descriptor is null", Toast.LENGTH_SHORT).show();
+//			Toast.makeText(mHostActivity, "File Descriptor is null", Toast.LENGTH_SHORT).show();
+			mHostActivity.toastHandler("File Descriptor is null");
 		}
 		
 	}
@@ -267,15 +279,19 @@ public class MegaADKController extends AccessoryController implements Runnable {
 	public void closeAccessory() {
 		mHostActivity.enableControls(false);
 		mAccessoryReady = false;
-		Toast.makeText(mHostActivity, "Closing accessory", Toast.LENGTH_SHORT).show();
+//		Toast.makeText(mHostActivity, "Closing accessory", Toast.LENGTH_SHORT).show();
+		mHostActivity.toastHandler("Closing accessory");
 
 		try {
 			if (mFileDescriptor != null) {
-				Toast.makeText(mHostActivity, "Closing FileDescriptor", Toast.LENGTH_SHORT).show();
+//				Toast.makeText(mHostActivity, "Closing FileDescriptor", Toast.LENGTH_SHORT).show();
+				mHostActivity.toastHandler("Closing FileDescriptor");
 				mFileDescriptor.close();
 			}
 			if(mInputStream != null) {
-				mInputStream.close();
+				synchronized(usbIOLock) {
+					mInputStream.close();
+				}
 			}
 			if(mOutputStream != null) {
 				synchronized(usbIOLock) {
@@ -284,14 +300,14 @@ public class MegaADKController extends AccessoryController implements Runnable {
 			}
 
 		} catch (IOException e) {
-			Toast.makeText(mHostActivity, "Close accessory IOException", Toast.LENGTH_SHORT).show();
-			
+//			Toast.makeText(mHostActivity, "Close accessory IOException", Toast.LENGTH_SHORT).show();
+			mHostActivity.toastHandler("Close accessory IOException");
 		} finally {
 			mFileDescriptor = null;
 			mAccessory = null;
-			mInputStream = null;
 			synchronized(usbIOLock) {
 				mOutputStream = null;
+				mInputStream = null;
 			}
 		}
 	}
@@ -317,6 +333,7 @@ public class MegaADKController extends AccessoryController implements Runnable {
 		synchronized(usbIOLock) {
 			try {
 				if(mInputStream != null) {
+					mHostActivity.toastHandler("Trying to do a USB Read operation...");
 					int status = mInputStream.read(readBuffer);
 					return status;
 				} else {
@@ -324,6 +341,7 @@ public class MegaADKController extends AccessoryController implements Runnable {
 				}
 			}
 			catch (IOException e) {
+				mHostActivity.toastHandler("USB Read exception");
 				return -1;
 			}
 		}
@@ -332,12 +350,12 @@ public class MegaADKController extends AccessoryController implements Runnable {
 	public void sendHexFile() {
 
 		if(!mAccessoryReady) {
-	   		Toast.makeText(mHostActivity, "Accessory is not ready",Toast.LENGTH_SHORT).show();
+//	   		Toast.makeText(mHostActivity, "Accessory is not ready",Toast.LENGTH_SHORT).show();
 			return;
 		}
 		
 		if(mHexXferInProg) {
-	   		Toast.makeText(mHostActivity, "Thread already running",Toast.LENGTH_SHORT).show();
+//	   		Toast.makeText(mHostActivity, "Thread already running",Toast.LENGTH_SHORT).show();
 			return;
 		}
 
