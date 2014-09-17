@@ -23,8 +23,12 @@ public class PeriodicScheduler {
             public void run() {
 
             	if(task != null) {
-                	// Run the passed runnable
-                    task.run();
+
+            		Thread taskThread = new Thread(task);
+            		
+            		// Start the runnable in a separate thread
+                    taskThread.start();
+                    
                     // Re-run it after the update interval
                     mHandler.postDelayed(this, UPDATE_INTERVAL);
             	}

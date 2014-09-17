@@ -250,7 +250,7 @@ public class DemoKitActivity extends Activity implements Runnable {
 			}
 		});
 		
-		mAccessoryFsm = new PeriodicScheduler(mAccessoryController, 10000);
+		mAccessoryFsm = new PeriodicScheduler(mAccessoryController, 20000);
 		
 /*		// Generate a blue-tooth instance
 		mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
