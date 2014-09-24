@@ -41,9 +41,9 @@ public class UsbBroadcastReceiver extends BroadcastReceiver {
 		} else if (UsbManager.ACTION_USB_ACCESSORY_DETACHED.equals(action)) {
 			UsbAccessory[] accessories = mUsbManager.getAccessoryList();
 			UsbAccessory accessory = (accessories == null ? null : accessories[0]);
-			if (accessory != null && accessory.equals(mAccessoryController.getAccessory())) {
+//			if (accessory != null && accessory.equals(mAccessoryController.getAccessory())) {
 				mAccessoryController.closeAccessory();
-			}
+//			}
 		}
 	}
 }
