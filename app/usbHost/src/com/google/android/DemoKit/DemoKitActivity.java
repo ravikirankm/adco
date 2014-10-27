@@ -70,8 +70,6 @@ import com.google.android.gms.gcm.GoogleCloudMessaging;
 public class DemoKitActivity extends Activity implements Runnable {
 	private static final String TAG = "DemoKit";
 
-	public static final String ACTION_USB_PERMISSION = "com.google.android.DemoKit.action.USB_PERMISSION";
-	
 	private boolean mPermissionRequestPending;
 	
 	private static final String siteId = "EGYPTD3322";
@@ -85,7 +83,7 @@ public class DemoKitActivity extends Activity implements Runnable {
 	UsbBroadcastReceiver mUsbReceiver;
 
 	AccessoryUtils mUtils;
-	MegaADKController mAccessoryController;
+//	MegaADKController mAccessoryController;
 	
 	ConnBroadcastReceiver mConnReceiver;
 	
@@ -114,7 +112,6 @@ public class DemoKitActivity extends Activity implements Runnable {
     Messenger mAccessoryMsgHandler = null;
     
     PeriodicScheduler mNocServiceRequestor;
-    PeriodicScheduler mAccessoryFsm;
     
     protected class BluetoothMsgHandler extends Handler {
     	@Override
@@ -231,22 +228,13 @@ public class DemoKitActivity extends Activity implements Runnable {
 //		Toast.makeText(this, "inside onCreate of DemoKitActivity", Toast.LENGTH_SHORT).show();
 		
 		// Create the USB Accessory Controller
-		mAccessoryController = new MegaADKController(this);
+//		mAccessoryController = new MegaADKController(this);
 		
-		IntentFilter usbFilter = new IntentFilter(ACTION_USB_PERMISSION);
-		usbFilter.addAction(UsbManager.ACTION_USB_ACCESSORY_ATTACHED);
-		usbFilter.addAction(UsbManager.ACTION_USB_ACCESSORY_DETACHED);
-		
-		mUsbReceiver = new UsbBroadcastReceiver(mAccessoryController);
 		
 //		mUsbManager = UsbManager.getInstance(this);
 
 		IntentFilter connFilter = new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION);
 		mConnReceiver = new ConnBroadcastReceiver();
-		
-		// Register all the broadcast receivers
-		// 1. USB
-		registerReceiver(mUsbReceiver, usbFilter);
 		
 		// 2. ConnectivityManager
 		registerReceiver(mConnReceiver, connFilter);
@@ -264,7 +252,6 @@ public class DemoKitActivity extends Activity implements Runnable {
 			}
 		});
 		
-		mAccessoryFsm = new PeriodicScheduler(mAccessoryController, 15000);
 		
 /*		// Generate a blue-tooth instance
 		mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
@@ -293,14 +280,14 @@ public class DemoKitActivity extends Activity implements Runnable {
 	@Override
 	public Object onRetainNonConfigurationInstance() {
 		
-		UsbAccessory mAccessory = mAccessoryController.getAccessory();
+/*		UsbAccessory mAccessory = mAccessoryController.getAccessory();
 		
 		if (mAccessory != null) {
 			return mAccessory;
 		} else {
 			return super.onRetainNonConfigurationInstance();
 		}
-	}
+*/	}
 
 
     @Override
@@ -315,7 +302,6 @@ public class DemoKitActivity extends Activity implements Runnable {
 
 		Intent accessoryIntent = new Intent(this, AccessoryController.class);
 		bindService(accessoryIntent, mAccessoryConnection, Context.BIND_AUTO_CREATE);
-
     
     }
 	
@@ -328,10 +314,6 @@ public class DemoKitActivity extends Activity implements Runnable {
 
 		Intent intent = getIntent();
 		
-		mAccessoryController.openAccessory();
-		
-		// Start the periodic Accessory checker
-		mAccessoryFsm.startUpdates();
 	}
 	
 	/** Defines callbacks for service binding, passed to bindService() */
@@ -421,9 +403,9 @@ public class DemoKitActivity extends Activity implements Runnable {
 	public void onDestroy() {
 		Toast.makeText(this, "inside onDestroy of DemoKitActivity", Toast.LENGTH_SHORT).show();
 
-		unregisterReceiver(mUsbReceiver);
+//		unregisterReceiver(mUsbReceiver);
 		unregisterReceiver(mConnReceiver);
-		mAccessoryController.closeAccessory();
+//		mAccessoryController.closeAccessory();
 		
 		super.onDestroy();
 	}

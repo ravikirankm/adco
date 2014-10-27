@@ -1,8 +1,5 @@
 package com.google.android.DemoKit;
 
-import com.google.android.DemoKit.BluetoothService.BluetoothBinder;
-import com.google.android.DemoKit.BluetoothService.IncomingHandler;
-
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
@@ -23,7 +20,7 @@ public abstract class AccessoryController extends Service{
 	protected UsbManager mUsbManager;
 
     protected Messenger mClientMessenger;
-    protected Messenger mServiceMessenger;
+    protected Messenger mMsgHandler;
     
     // Binder given to clients
     private final IBinder mBinder = new AccessoryBinder();
@@ -37,9 +34,15 @@ public abstract class AccessoryController extends Service{
 		return mHostActivity.findViewById(id);
 	}
 
+	public void doOnIncomingMsg(Message msg) {
+		switch (msg.what) {
+		}
+	}
+	
    protected class IncomingHandler extends Handler {
 	   @Override
 	   public void handleMessage(Message msg) {
+		   doOnIncomingMsg(msg);
 		   mClientMessenger = msg.replyTo;
 	   }    	
    }
@@ -47,8 +50,8 @@ public abstract class AccessoryController extends Service{
    @Override
    public IBinder onBind(Intent arg0) {
 	   // TODO Auto-generated method stub
-	   mServiceMessenger = new Messenger(new IncomingHandler());
-	   return mServiceMessenger.getBinder();
+	   mMsgHandler = new Messenger(new IncomingHandler());
+	   return mMsgHandler.getBinder();
    }
 	    
    /**

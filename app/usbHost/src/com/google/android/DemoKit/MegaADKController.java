@@ -14,6 +14,7 @@ import android.hardware.usb.UsbManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.AsyncTask;
 import android.os.ParcelFileDescriptor;
 
@@ -37,6 +38,7 @@ public class MegaADKController extends AccessoryController implements Runnable {
 	private static final int USB_STATUS_DATA_AVAILABLE_MASK = 0x1;
 
 	private static final int USB_READ_TIMEOUT = 1000;
+	public static final String ACTION_USB_PERMISSION = "com.google.android.DemoKit.action.USB_PERMISSION";
 
 	private int next_state = USB_STATE_IDLE;
 	private int curr_state = USB_STATE_IDLE;
@@ -53,11 +55,42 @@ public class MegaADKController extends AccessoryController implements Runnable {
 	FileOutputStream mOutputStream;
 	
 	private UsbManager mUsbManager;
+	private UsbBroadcastReceiver mUsbReceiver;
+    PeriodicScheduler mAccessoryFsm;
 	
 	public MegaADKController(DemoKitActivity activity) {
 		super(activity);
 		// TODO Auto-generated constructor stub
 	}
+	
+	@Override
+	public void onCreate() {
+		IntentFilter usbFilter = new IntentFilter(ACTION_USB_PERMISSION);
+		usbFilter.addAction(UsbManager.ACTION_USB_ACCESSORY_ATTACHED);
+		usbFilter.addAction(UsbManager.ACTION_USB_ACCESSORY_DETACHED);
+		
+		mUsbReceiver = new UsbBroadcastReceiver(this);
+
+		// Register all the broadcast receivers
+		// 1. USB
+		registerReceiver(mUsbReceiver, usbFilter);
+		
+		mAccessoryFsm = new PeriodicScheduler(this, 15000);
+		
+		openAccessory();
+		
+		// Start the periodic Accessory checker
+		mAccessoryFsm.startUpdates();
+		
+	}
+
+	@Override
+	public void onDestroy() {
+		mAccessoryFsm.stopUpdates();
+		unregisterReceiver(mUsbReceiver);
+		
+	}
+	
 
 	@Override
 	protected void onAccesssoryAttached() {
@@ -354,7 +387,7 @@ public class MegaADKController extends AccessoryController implements Runnable {
 				openAccessoryIO(accessory);
 			} else {
 				PendingIntent mPermissionIntent = PendingIntent.getBroadcast(mHostActivity, 0, new Intent(
-						DemoKitActivity.ACTION_USB_PERMISSION), 0);
+						ACTION_USB_PERMISSION), 0);
 
 //				mHostActivity.toastHandler("Requesting Permission");
 				mUsbManager.requestPermission(accessory, mPermissionIntent);
