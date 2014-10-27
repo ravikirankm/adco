@@ -55,6 +55,9 @@
 				android:resource="@xml/accessory_filter" />
 		</activity>
 		
+ 		<service android:name=".BluetoothService">
+ 		</service>
+ 		
 		<receiver
     		android:name="StartActivityAtBootReceiver"
 		    android:enabled="true"

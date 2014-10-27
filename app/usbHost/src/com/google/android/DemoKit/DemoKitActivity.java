@@ -46,10 +46,12 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
+import android.os.Messenger;
 import android.os.Parcel;
 import android.os.ParcelFileDescriptor;
 import android.os.AsyncTask;
 import android.os.Parcelable;
+import android.os.RemoteException;
 import android.util.Log;
 import android.widget.SeekBar;
 import android.widget.Toast;
@@ -58,6 +60,8 @@ import android.bluetooth.BluetoothDevice;
 
 import android.hardware.usb.UsbAccessory;
 import android.hardware.usb.UsbManager;
+
+import com.google.android.DemoKit.BluetoothService.BluetoothBinder;
 import com.google.android.DemoKit.NocAccessService.LocalBinder;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesUtil;
@@ -73,6 +77,9 @@ public class DemoKitActivity extends Activity implements Runnable {
 	private static final String siteId = "EGYPTD3322";
 	private static final String nocUrl = "75.177.179.58";
 	public static final String localHexFP = "/storage/emulated/legacy/myfolder" + "/" + "new.bin";
+
+	private static final int BT_MSG_HEX_FILE_AVAIL= 0;
+	private static final int BT_MSG_DEBUG= 1;
 	
 	
 	UsbBroadcastReceiver mUsbReceiver;
@@ -81,9 +88,6 @@ public class DemoKitActivity extends Activity implements Runnable {
 	MegaADKController mAccessoryController;
 	
 	ConnBroadcastReceiver mConnReceiver;
-	
-	Intent enableBtIntent;
-	BluetoothAdapter mBluetoothAdapter;
 	
 	private static final int MESSAGE_SWITCH = 1;
 	private static final int MESSAGE_TEMPERATURE = 2;
@@ -101,8 +105,48 @@ public class DemoKitActivity extends Activity implements Runnable {
     NocAccessService mNocAccessService;
     public boolean mNocServiceBound;
 
+    public boolean mBluetoothServiceBound;
+    Messenger mBTService= null;
+    Messenger mBTMsgHandler = null;
+
+    public boolean mAccessoryBound;
+    Messenger mAccessoryController = null; 
+    Messenger mAccessoryMsgHandler = null;
+    
     PeriodicScheduler mNocServiceRequestor;
     PeriodicScheduler mAccessoryFsm;
+    
+    protected class BluetoothMsgHandler extends Handler {
+    	@Override
+    	public void handleMessage(Message msg) {
+    		switch(msg.what) {
+    		case BT_MSG_HEX_FILE_AVAIL:
+    			toastHandler("Got Hex file from BT Service");
+    			break;
+    		case BT_MSG_DEBUG:
+  //  			toastHandler(msg.getData().getString("debug"));
+    			break;
+    		default:
+    			super.handleMessage(msg);
+    			break;
+    		}
+    	}
+    }
+    
+    protected class AccessoryMsgHandler extends Handler {
+    	@Override
+    	public void handleMessage(Message msg) {
+    		switch(msg.what) {
+    		case UsbMessages.DBG_MSG:
+    			toastHandler(msg.getData().getString("debug"));
+    			break;
+    		default:
+    			super.handleMessage(msg);
+    			break;
+    		}
+    	}
+    }
+    
     
 	protected class SwitchMsg {
 		private byte sw;
@@ -177,36 +221,6 @@ public class DemoKitActivity extends Activity implements Runnable {
 		});
 	}
 
-	protected void onActivityResult (int requestCode, int resultCode, Intent data) {
-/*		if(requestCode == REQUEST_ENABLE_BT) {
-			if(resultCode == RESULT_OK) {
-				Log.d(TAG, "Bluetooth Successfully enabled!");
-				
-				
-				Set<BluetoothDevice> pairedDevices = mBluetoothAdapter.getBondedDevices();
-				// If there are paired devices
-				if (pairedDevices.size() > 0) {
-//					ArrayAdapter mArrayAdapter = new ArrayAdapter(this, )
-				    // Loop through paired devices
-				    for (BluetoothDevice device : pairedDevices) {
-				        // Add the name and address to an array adapter to show in a ListView
-				        Log.d(TAG, "List of paired Devices: \n" + device.getName() + "\n" + device.getAddress());
-				    }
-				}				
-				
-			} else if(resultCode == RESULT_CANCELED) {
-				Log.d(TAG, "Bluetooth could not be enabled!");
-			}
-		}
-*/	
-		if(requestCode == REQUEST_BT_START_DISCOVERY) {
-			if(resultCode != RESULT_CANCELED) {
-/*				BTSocketMgr btmgr = new BTSocketMgr(mBluetoothAdapter, this);
-				btmgr.start();
-*/			}
-		}
-	}
-
 	/** Called when the activity is first created. */
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
@@ -214,7 +228,7 @@ public class DemoKitActivity extends Activity implements Runnable {
 		
 		context = getApplicationContext();
 		
-		Toast.makeText(this, "inside onCreate of DemoKitActivity", Toast.LENGTH_SHORT).show();
+//		Toast.makeText(this, "inside onCreate of DemoKitActivity", Toast.LENGTH_SHORT).show();
 		
 		// Create the USB Accessory Controller
 		mAccessoryController = new MegaADKController(this);
@@ -250,7 +264,7 @@ public class DemoKitActivity extends Activity implements Runnable {
 			}
 		});
 		
-		mAccessoryFsm = new PeriodicScheduler(mAccessoryController, 20000);
+		mAccessoryFsm = new PeriodicScheduler(mAccessoryController, 15000);
 		
 /*		// Generate a blue-tooth instance
 		mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
@@ -270,7 +284,10 @@ public class DemoKitActivity extends Activity implements Runnable {
 		    enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
 		    startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
 		}
-*/		
+*/	
+		mBTMsgHandler = new Messenger(new BluetoothMsgHandler());
+		
+		mAccessoryMsgHandler = new Messenger(new AccessoryMsgHandler());
 	}
 
 	@Override
@@ -291,7 +308,15 @@ public class DemoKitActivity extends Activity implements Runnable {
         super.onStart();
 
         Intent nocServiceIntent = new Intent(this, NocAccessService.class);
-		bindService(nocServiceIntent, mConnection, Context.BIND_AUTO_CREATE);
+		bindService(nocServiceIntent, mNocConnection, Context.BIND_AUTO_CREATE);
+		
+		Intent btServiceIntent = new Intent(this, BluetoothService.class);
+		bindService(btServiceIntent, mBTConnection, Context.BIND_AUTO_CREATE);
+
+		Intent accessoryIntent = new Intent(this, AccessoryController.class);
+		bindService(accessoryIntent, mAccessoryConnection, Context.BIND_AUTO_CREATE);
+
+    
     }
 	
 	
@@ -299,7 +324,7 @@ public class DemoKitActivity extends Activity implements Runnable {
 	public void onResume() {
 		super.onResume();
 
-		Toast.makeText(this, "inside onResume of DemoKitActivity", Toast.LENGTH_SHORT).show();
+//		Toast.makeText(this, "inside onResume of DemoKitActivity", Toast.LENGTH_SHORT).show();
 
 		Intent intent = getIntent();
 		
@@ -310,7 +335,7 @@ public class DemoKitActivity extends Activity implements Runnable {
 	}
 	
 	/** Defines callbacks for service binding, passed to bindService() */
-    private ServiceConnection mConnection = new ServiceConnection() {
+    private ServiceConnection mNocConnection = new ServiceConnection() {
 
         @Override
         public void onServiceConnected(ComponentName className,
@@ -327,11 +352,58 @@ public class DemoKitActivity extends Activity implements Runnable {
         }
     };
 	
+    private ServiceConnection mBTConnection = new ServiceConnection() {
+    	
+    	@Override
+    	public void onServiceConnected(ComponentName className, IBinder service) {
+/*    		BluetoothBinder binder = (BluetoothBinder) service;
+    		mBluetoothService = binder.getService();
+    		Thread mBluetoothServiceThread = new Thread(mBluetoothService);
+    		mBluetoothServiceThread.start();
+*/    		
+    		mBTService= new Messenger (service);
+    		Message msg = Message.obtain(null, 0,0,0);
+    		msg.replyTo = mBTMsgHandler;
+    		try {
+    			mBTService.send(msg);
+    		} catch (RemoteException e) {
+    			
+    		}
+    		mBluetoothServiceBound = true;
+    	}
+    	
+    	@Override
+    	public void onServiceDisconnected(ComponentName arg0) {
+    		mBluetoothServiceBound = false;
+    	}
+    };
+    
+    private ServiceConnection mAccessoryConnection = new ServiceConnection() {
+    	
+    	@Override
+    	public void onServiceConnected(ComponentName className, IBinder service) {
+    		mAccessoryService= new Messenger (service);
+    		Message msg = Message.obtain(null, 0,0,0);
+    		msg.replyTo = mBTMsgHandler;
+    		try {
+    			mBTService.send(msg);
+    		} catch (RemoteException e) {
+    			
+    		}
+    		mBluetoothServiceBound = true;
+    	}
+    	
+    	@Override
+    	public void onServiceDisconnected(ComponentName arg0) {
+    		mBluetoothServiceBound = false;
+    	}
+    };
 
-	@Override
+    
+    @Override
 	public void onPause() {
 		super.onPause();
-		Toast.makeText(this, "inside onPause of DemoKitActivity", Toast.LENGTH_SHORT).show();
+//		Toast.makeText(this, "inside onPause of DemoKitActivity", Toast.LENGTH_SHORT).show();
 		mAccessoryFsm.stopUpdates();
 	}
 
@@ -340,7 +412,7 @@ public class DemoKitActivity extends Activity implements Runnable {
         super.onStop();
         // Unbind from the service
         if (mNocServiceBound) {
-            unbindService(mConnection);
+            unbindService(mNocConnection);
             mNocServiceBound = false;
         }
     }
@@ -499,6 +571,10 @@ public class DemoKitActivity extends Activity implements Runnable {
 		}
 */		
 		return status;
+	}
+	
+	public void sendHexFile() {
+		
 	}
 	
 	public void sendPacket(byte [] packet) {

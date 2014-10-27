@@ -38,9 +38,9 @@ public class ConnBroadcastReceiver extends BroadcastReceiver{
 //					FileOutputStream videoOut;
 //				File targetFile = new File("/storage/emulated/legacy/myfolder" + "/" + "test.bin");
 				
-					FtpMgr ftpMgr= new FtpMgr(context);
+/*					FtpMgr ftpMgr= new FtpMgr(context);
 					ftpMgr.start();
-			    
+*/			    
 				} else {
 					Toast.makeText(context, "No Internet Connection Detected", Toast.LENGTH_SHORT).show();
 				}

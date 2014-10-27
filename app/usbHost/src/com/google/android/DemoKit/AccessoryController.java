@@ -1,16 +1,32 @@
 package com.google.android.DemoKit;
 
+import com.google.android.DemoKit.BluetoothService.BluetoothBinder;
+import com.google.android.DemoKit.BluetoothService.IncomingHandler;
+
+import android.app.Service;
 import android.content.Context;
+import android.content.Intent;
 import android.content.res.Resources;
 import android.hardware.usb.UsbAccessory;
 import android.hardware.usb.UsbManager;
+import android.os.Binder;
+import android.os.Handler;
+import android.os.IBinder;
+import android.os.Message;
+import android.os.Messenger;
 import android.view.View;
 
-public abstract class AccessoryController {
+public abstract class AccessoryController extends Service{
 
 	protected DemoKitActivity mHostActivity;
 	protected UsbAccessory mAccessory;
 	protected UsbManager mUsbManager;
+
+    protected Messenger mClientMessenger;
+    protected Messenger mServiceMessenger;
+    
+    // Binder given to clients
+    private final IBinder mBinder = new AccessoryBinder();
 	
 	public AccessoryController(DemoKitActivity activity) {
 		mHostActivity = activity;
@@ -21,10 +37,35 @@ public abstract class AccessoryController {
 		return mHostActivity.findViewById(id);
 	}
 
-	protected Resources getResources() {
+   protected class IncomingHandler extends Handler {
+	   @Override
+	   public void handleMessage(Message msg) {
+		   mClientMessenger = msg.replyTo;
+	   }    	
+   }
+
+   @Override
+   public IBinder onBind(Intent arg0) {
+	   // TODO Auto-generated method stub
+	   mServiceMessenger = new Messenger(new IncomingHandler());
+	   return mServiceMessenger.getBinder();
+   }
+	    
+   /**
+    * Class used for the client Binder.  Because we know this service always
+    * runs in the same process as its clients, we don't need to deal with IPC.
+    */
+   public class AccessoryBinder extends Binder {
+	   AccessoryController getService() {
+		   // Return this instance of LocalService so clients can call public methods
+		   return AccessoryController.this;
+	   }
+   }
+   
+/*	protected Resources getResources() {
 		return mHostActivity.getResources();
 	}
-
+*/
 	void accessoryAttached() {
 		onAccesssoryAttached();
 	}
