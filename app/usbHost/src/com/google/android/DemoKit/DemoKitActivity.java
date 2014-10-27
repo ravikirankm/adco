@@ -287,7 +287,10 @@ public class DemoKitActivity extends Activity implements Runnable {
 		} else {
 			return super.onRetainNonConfigurationInstance();
 		}
-*/	}
+*/	
+		return super.onRetainNonConfigurationInstance();
+		
+	}
 
 
     @Override
@@ -364,7 +367,7 @@ public class DemoKitActivity extends Activity implements Runnable {
     	
     	@Override
     	public void onServiceConnected(ComponentName className, IBinder service) {
-    		mAccessoryService= new Messenger (service);
+    		mAccessoryController = new Messenger (service);
     		Message msg = Message.obtain(null, 0,0,0);
     		msg.replyTo = mBTMsgHandler;
     		try {
@@ -386,7 +389,7 @@ public class DemoKitActivity extends Activity implements Runnable {
 	public void onPause() {
 		super.onPause();
 //		Toast.makeText(this, "inside onPause of DemoKitActivity", Toast.LENGTH_SHORT).show();
-		mAccessoryFsm.stopUpdates();
+//		mAccessoryFsm.stopUpdates();
 	}
 
     @Override

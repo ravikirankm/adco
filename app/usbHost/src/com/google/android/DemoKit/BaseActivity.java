@@ -15,12 +15,12 @@ public class BaseActivity extends DemoKitActivity {
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		if (mAccessoryController.getAccessory() != null) {
+/*		if (mAccessoryController.getAccessory() != null) {
 			showControls();
 		} else {
 			hideControls();
 		}
-	}
+*/	}
 
 	@Override
 	public boolean onCreateOptionsMenu(Menu menu) {

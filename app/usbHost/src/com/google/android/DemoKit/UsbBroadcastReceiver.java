@@ -25,7 +25,7 @@ public class UsbBroadcastReceiver extends BroadcastReceiver {
 
 		UsbManager mUsbManager = (UsbManager) context.getSystemService(Context.USB_SERVICE);
 		
-		if (DemoKitActivity.ACTION_USB_PERMISSION.equals(action)) {
+		if (MegaADKController.ACTION_USB_PERMISSION.equals(action)) {
 //			synchronized (this) {
 				
 				UsbAccessory[] accessories = mUsbManager.getAccessoryList();
