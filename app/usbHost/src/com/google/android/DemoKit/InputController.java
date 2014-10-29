@@ -8,30 +8,30 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 public class InputController extends AccessoryController {
-	private TextView mTemperature;
+/*	private TextView mTemperature;
 	private TextView mLightView;
 	private TextView mLightRawView;
 	private JoystickView mJoystickView;
-	ArrayList<SwitchDisplayer> mSwitchDisplayers;
+*///	ArrayList<SwitchDisplayer> mSwitchDisplayers;
 	private final DecimalFormat mLightValueFormatter = new DecimalFormat("##.#");
 	private final DecimalFormat mTemperatureFormatter = new DecimalFormat(
 			"###" + (char)0x00B0);
 
 	InputController(DemoKitActivity hostActivity) {
 		super(hostActivity);
-		mTemperature = (TextView) findViewById(R.id.tempValue);
+/*		mTemperature = (TextView) findViewById(R.id.tempValue);
 		mLightView = (TextView) findViewById(R.id.lightPercentValue);
 		mLightRawView = (TextView) findViewById(R.id.lightRawValue);
 		mJoystickView = (JoystickView) findViewById(R.id.joystickView);
-	}
+*/	}
 
 	protected void onAccesssoryAttached() {
-		mSwitchDisplayers = new ArrayList<SwitchDisplayer>();
+/*		mSwitchDisplayers = new ArrayList<SwitchDisplayer>();
 		for (int i = 0; i < 4; ++i) {
 			SwitchDisplayer sd = new SwitchDisplayer(i);
 			mSwitchDisplayers.add(sd);
 		}
-	}
+*/	}
 
 	public void setTemperature(int temperatureFromArduino) {
 		/*
@@ -47,35 +47,35 @@ public class InputController extends AccessoryController {
 		 * mV/degC (typical) for the MCP9700/9700A and 19.5 mV/degC (typical)
          * for the MCP9701/9701A. The out- put voltage at 0 degC is also scaled
          * to 500 mV (typical) and 400 mV (typical) for the MCP9700/9700A and
-		 * MCP9701/9701A, respectively. VOUT = TC¥TA+V0degC
+		 * MCP9701/9701A, respectively. VOUT = TCï¿½TA+V0degC
 		 */
 		double kVoltageAtZeroCmv = 400;
 		double kTemperatureCoefficientmvperC = 19.5;
 		double ambientTemperatureC = ((double) voltagemv - kVoltageAtZeroCmv)
 				/ kTemperatureCoefficientmvperC;
 		double temperatureF = (9.0 / 5.0) * ambientTemperatureC + 32.0;
-		mTemperature.setText(mTemperatureFormatter.format(temperatureF));
+//		mTemperature.setText(mTemperatureFormatter.format(temperatureF));
 	}
 
 	public void setLightValue(int lightValueFromArduino) {
-		mLightRawView.setText(String.valueOf(lightValueFromArduino));
+/*		mLightRawView.setText(String.valueOf(lightValueFromArduino));
 		mLightView.setText(mLightValueFormatter
 				.format((100.0 * (double) lightValueFromArduino / 1024.0)));
-	}
+*/	}
 
 	public void switchStateChanged(int switchIndex, boolean switchState) {
-		if (switchIndex >= 0 && switchIndex < mSwitchDisplayers.size()) {
+/*		if (switchIndex >= 0 && switchIndex < mSwitchDisplayers.size()) {
 			SwitchDisplayer sd = mSwitchDisplayers.get(switchIndex);
 			sd.onSwitchStateChange(switchState);
 		}
-	}
+*/	}
 
 	public void joystickButtonSwitchStateChanged(boolean buttonState) {
-		mJoystickView.setPressed(buttonState);
+//		mJoystickView.setPressed(buttonState);
 	}
 
 	public void joystickMoved(int x, int y) {
-		mJoystickView.setPosition(x, y);
+//		mJoystickView.setPosition(x, y);
 	}
 
 	public void onTemperature(int temperature) {
@@ -98,7 +98,7 @@ public class InputController extends AccessoryController {
 		joystickMoved(x, y);
 	}
 
-	class SwitchDisplayer {
+/*	class SwitchDisplayer {
 		private final ImageView mTargetView;
 		private final Drawable mOnImage;
 		private final Drawable mOffImage;
@@ -141,6 +141,6 @@ public class InputController extends AccessoryController {
 			}
 			mTargetView.setImageDrawable(currentImage);
 		}
-
 	}
+*/
 }

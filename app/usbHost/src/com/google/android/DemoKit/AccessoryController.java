@@ -7,17 +7,19 @@ import android.content.res.Resources;
 import android.hardware.usb.UsbAccessory;
 import android.hardware.usb.UsbManager;
 import android.os.Binder;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
+import android.os.RemoteException;
 import android.view.View;
 
 public abstract class AccessoryController extends Service{
 
-	protected DemoKitActivity mHostActivity;
-	protected UsbAccessory mAccessory;
-	protected UsbManager mUsbManager;
+//	protected DemoKitActivity mHostActivity;
+//	protected UsbAccessory mAccessory;
+//	protected UsbManager mUsbManager;
 
     protected Messenger mClientMessenger;
     protected Messenger mMsgHandler;
@@ -26,14 +28,14 @@ public abstract class AccessoryController extends Service{
     private final IBinder mBinder = new AccessoryBinder();
 	
 	public AccessoryController(DemoKitActivity activity) {
-		mHostActivity = activity;
-		mUsbManager = (UsbManager) mHostActivity.getSystemService(Context.USB_SERVICE);
+//		mHostActivity = activity;
+//		mUsbManager = (UsbManager) mHostActivity.getSystemService(Context.USB_SERVICE);
 	}
 
-	protected View findViewById(int id) {
-		return mHostActivity.findViewById(id);
+/*	protected View findViewById(int id) {
+		return findViewById(id);
 	}
-
+*/
 	public void doOnIncomingMsg(Message msg) {
 		switch (msg.what) {
 		}
@@ -94,9 +96,21 @@ public abstract class AccessoryController extends Service{
 	public void closeAccessory() {
 		
 	}
+
+	protected void sendClientDebugMsg(String str) {
+		if(mClientMessenger != null) {
+			Message msg = Message.obtain(null, UsbMessages.DBG_MSG, 0, 0);
+			Bundle msgBundle = new Bundle(); 
+			msgBundle.putString("debug", str);
+			msg.setData(msgBundle);
+			try {
+				mClientMessenger.send(msg);
+			} catch (RemoteException e) {}
+		}
+	}
 	
-	public UsbAccessory getAccessory() {
+/*	public UsbAccessory getAccessory() {
 		return mAccessory;
 	}
-
+*/
 }

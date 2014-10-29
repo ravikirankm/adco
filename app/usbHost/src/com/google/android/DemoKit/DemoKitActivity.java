@@ -53,6 +53,8 @@ import android.os.AsyncTask;
 import android.os.Parcelable;
 import android.os.RemoteException;
 import android.util.Log;
+import android.view.View;
+import android.widget.Button;
 import android.widget.SeekBar;
 import android.widget.Toast;
 import android.bluetooth.BluetoothAdapter;
@@ -79,8 +81,7 @@ public class DemoKitActivity extends Activity implements Runnable {
 	private static final int BT_MSG_HEX_FILE_AVAIL= 0;
 	private static final int BT_MSG_DEBUG= 1;
 	
-	
-	UsbBroadcastReceiver mUsbReceiver;
+//	UsbBroadcastReceiver mUsbReceiver;
 
 	AccessoryUtils mUtils;
 //	MegaADKController mAccessoryController;
@@ -143,7 +144,6 @@ public class DemoKitActivity extends Activity implements Runnable {
     		}
     	}
     }
-    
     
 	protected class SwitchMsg {
 		private byte sw;
@@ -240,8 +240,19 @@ public class DemoKitActivity extends Activity implements Runnable {
 		registerReceiver(mConnReceiver, connFilter);
 
 		setContentView(R.layout.main);
+		
+		// Create button here
+		Button sendHexButton = (Button) findViewById(R.id.button_send_hex); 
+		sendHexButton.setOnClickListener(new View.OnClickListener() {
+			
+			@Override
+			public void onClick(View v) {
+				// TODO Auto-generated method stub
+				
+			}
+		});
 
-		enableControls(false);
+		enableControls(true);
 		
 		mUtils = new AccessoryUtils(this);
 

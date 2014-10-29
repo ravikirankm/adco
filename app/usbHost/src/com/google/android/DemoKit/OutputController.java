@@ -12,7 +12,7 @@ public class OutputController extends AccessoryController {
 	}
 
 	protected void onAccesssoryAttached() {
-		setupServoController(1, R.id.servo1);
+/*		setupServoController(1, R.id.servo1);
 		setupServoController(2, R.id.servo2);
 		setupServoController(3, R.id.servo3);
 
@@ -22,9 +22,9 @@ public class OutputController extends AccessoryController {
 
 		setupRelayController(1, R.id.relay1);
 		setupRelayController(2, R.id.relay2);
-	}
+*/	}
 
-	private void setupServoController(int servoIndex, int viewId) {
+/*	private void setupServoController(int servoIndex, int viewId) {
 		ServoController sc = new ServoController(mHostActivity, servoIndex);
 		sc.attachToView((ViewGroup) findViewById(viewId));
 	}
@@ -40,5 +40,5 @@ public class OutputController extends AccessoryController {
 				getResources());
 		r.attachToView((ViewGroup) findViewById(viewId));
 	}
-
+*/
 }

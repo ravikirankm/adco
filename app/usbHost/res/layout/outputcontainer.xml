@@ -1,8 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
 	android:layout_width="match_parent" android:layout_height="wrap_content"
-	android:orientation="vertical" >
-	<include layout="@layout/servorelay" android:id="@+id/servoRelay_ref"
+	android:orientation="vertical">
+	<Button
+	  	android:id="@+id/button_send_hex"
+	    android:layout_width="wrap_content"
+	    android:layout_height="wrap_content"
+	    android:text="@string/sendHexFileLabel"
+	    android:onClick="sendHexFile" />
+    <include layout="@layout/servorelay" android:id="@+id/servoRelay_ref"
 		android:layout_width="match_parent" android:layout_height="wrap_content" />
 	<include layout="@layout/color_sliders" android:id="@+id/leds1"
 		android:layout_width="match_parent" android:layout_height="wrap_content" />
@@ -10,11 +16,5 @@
 		android:layout_width="match_parent" android:layout_height="wrap_content" />
 	<include layout="@layout/color_sliders" android:id="@+id/leds3"
 		android:layout_width="match_parent" android:layout_height="wrap_content" />
-	<Button
-	  	android:id="@+id/button_send_hex"
-	    android:layout_width="wrap_content"
-	    android:layout_height="wrap_content"
-	    android:text="Send Hex"
-	    android:onClick="sendHexFile" />
 </LinearLayout>
 

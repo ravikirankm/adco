@@ -139,7 +139,7 @@ int id TempContainer 0x7f080036
 int id TempLightContainer 0x7f080035
 int id TempLightContainer_ref 0x7f08001a
 int id book_now 0x7f080010
-int id button_send_hex 0x7f08002c
+int id button_send_hex 0x7f08002b
 int id buyButton 0x7f08000a
 int id buy_now 0x7f08000f
 int id buy_with_google 0x7f08000e
@@ -180,7 +180,7 @@ int id servo1 0x7f08002f
 int id servo2 0x7f080030
 int id servo3 0x7f080031
 int id servoRelay 0x7f080032
-int id servoRelay_ref 0x7f08002b
+int id servoRelay_ref 0x7f08002c
 int id servo_tablet 0x7f08002a
 int id servos 0x7f080033
 int id strict_sandbox 0x7f080009
@@ -242,6 +242,7 @@ int string on 0x7f070023
 int string output 0x7f07001c
 int string relay1Label 0x7f070020
 int string relay2Label 0x7f070021
+int string sendHexFileLabel 0x7f070024
 int string servo1Label 0x7f07001e
 int string wallet_buy_button_place_holder 0x7f070019
 int style DemoKitButtonDisplay 0x7f05000d
