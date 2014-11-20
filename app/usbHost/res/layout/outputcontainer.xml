@@ -7,8 +7,14 @@
 	    android:layout_width="wrap_content"
 	    android:layout_height="wrap_content"
 	    android:text="@string/sendHexFileLabel"
-	    android:onClick="sendHexFile" />
-    <include layout="@layout/servorelay" android:id="@+id/servoRelay_ref"
+	    android:onClick="onClickSendHexFile" />
+	<Button
+	  	android:id="@+id/button_set_settings"
+	    android:layout_width="wrap_content"
+	    android:layout_height="wrap_content"
+	    android:text="@string/setSettingsLabel"
+	    android:onClick="onClickSetSettings" />
+<!-- 	<include layout="@layout/servorelay" android:id="@+id/servoRelay_ref"
 		android:layout_width="match_parent" android:layout_height="wrap_content" />
 	<include layout="@layout/color_sliders" android:id="@+id/leds1"
 		android:layout_width="match_parent" android:layout_height="wrap_content" />
@@ -16,5 +22,6 @@
 		android:layout_width="match_parent" android:layout_height="wrap_content" />
 	<include layout="@layout/color_sliders" android:id="@+id/leds3"
 		android:layout_width="match_parent" android:layout_height="wrap_content" />
-</LinearLayout>
+ -->
+ </LinearLayout>
 

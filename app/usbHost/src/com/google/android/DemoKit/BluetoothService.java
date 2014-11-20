@@ -10,7 +10,6 @@ import java.io.OutputStream;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-import com.google.android.DemoKit.NocAccessService.LocalBinder;
 
 import android.app.Activity;
 import android.app.Service;
@@ -28,10 +27,10 @@ import android.os.Messenger;
 import android.os.RemoteException;
 import android.util.Log;
 
-public class BluetoothService extends Service implements Runnable {
+public class BluetoothService extends ServiceBase implements Runnable {
 
     // Binder given to clients
-    private final IBinder mBinder = new BluetoothBinder();
+//    private final IBinder mBinder = new BluetoothBinder();
 
 	private static final int REQUEST_BT_START_DISCOVERY = 1;
 	
@@ -55,24 +54,31 @@ public class BluetoothService extends Service implements Runnable {
     InputStream in;
     OutputStream out;
     
-    Messenger mLocalClientMessenger;
+//    Messenger mLocalClientMessenger;
     Messenger mServiceMessenger;
     
     Thread mFSMThread = new Thread(this);
     
-    protected class IncomingHandler extends Handler {
-    	@Override
-       	public void handleMessage(Message msg) {
-    		mLocalClientMessenger = msg.replyTo;
-    		mFSMThread.start();
-    	}    	
+    @Override
+    public void doOnIncomingMsg(Message msg) {
+    	
+    	switch (msg.what) {
+    		case BluetoothMessages.START_FSM : {
+    			mFSMThread.start();
+    		}
+    		default: {
+    			super.doOnIncomingMsg(msg);
+    			break;
+    		}
+    	}
+    	
     }
     
 	/**
      * Class used for the client Binder.  Because we know this service always
      * runs in the same process as its clients, we don't need to deal with IPC.
      */
-    public class BluetoothBinder extends Binder {
+/*    public class BluetoothBinder extends Binder {
         BluetoothService getService() {
             // Return this instance of LocalService so clients can call public methods
             return BluetoothService.this;
@@ -85,8 +91,8 @@ public class BluetoothService extends Service implements Runnable {
 		mServiceMessenger = new Messenger(new IncomingHandler());
 		return mServiceMessenger.getBinder();
 	}
-
-	private void sendLocalClientDebugMsg(String str) {
+*/
+/*	private void sendLocalClientDebugMsg(String str) {
 		if(mLocalClientMessenger != null) {
 			Message msg = Message.obtain(null, 1, 0, 0);
 			Bundle msgBundle = new Bundle(); 
@@ -97,7 +103,7 @@ public class BluetoothService extends Service implements Runnable {
 			} catch (RemoteException e) {}
 		}
 	}
-	
+*/	
 	public void run() {
 		curr_state = IDLE;
 		next_state = IDLE;
@@ -117,12 +123,12 @@ public class BluetoothService extends Service implements Runnable {
 			case (START_DISCOVERY):
 */
 			case (IDLE):
-				sendLocalClientDebugMsg("BT Service: curr_state = IDLE");
+				sendClientDebugMsg("BT Service: curr_state = IDLE");
 				makeDiscoverable();
 				next_state = WAITING_FOR_DISCOVERY_START;
 				break;
 			case (WAITING_FOR_DISCOVERY_START):
-				sendLocalClientDebugMsg("BT Service: curr_state = WAITING_FOR_DISCOVERY_START");
+				sendClientDebugMsg("BT Service: curr_state = WAITING_FOR_DISCOVERY_START");
 				if(mBluetoothAdapter.getScanMode() == BluetoothAdapter.SCAN_MODE_CONNECTABLE_DISCOVERABLE) {
 					next_state = WAITING_FOR_REMOTE_CLIENT;
 				} else {
@@ -135,7 +141,7 @@ public class BluetoothService extends Service implements Runnable {
 				break;
 				
 			case (WAITING_FOR_REMOTE_CLIENT):
-				sendLocalClientDebugMsg("BT Service: curr_state = WAITING_FOR_CLIENT");
+				sendClientDebugMsg("BT Service: curr_state = WAITING_FOR_CLIENT");
 				if(connect()) {
 					next_state = REMOTE_CLIENT_DATA_XFER;
 				} else {
@@ -143,7 +149,7 @@ public class BluetoothService extends Service implements Runnable {
 				}
 				break;
 			case (REMOTE_CLIENT_DATA_XFER):
-				sendLocalClientDebugMsg("BT Service: curr_state = REMOTE_CLIENT_DATA_XFERT");
+				sendClientDebugMsg("BT Service: curr_state = REMOTE_CLIENT_DATA_XFERT");
 				FileOutputStream tempFileO = null;
 	
 				File tempFile = new File(tempHexFP);
@@ -179,7 +185,7 @@ public class BluetoothService extends Service implements Runnable {
 				if (mBluetoothAdapter != null) {
 					// Device does not support Bluetooth
 //					Toast.makeText(getApplicationContext(), "Got valid Bluetooth Adapter",Toast.LENGTH_SHORT).show();
-					sendLocalClientDebugMsg("Got valid Bluetooth Adapter");
+					sendClientDebugMsg("Got valid Bluetooth Adapter");
 					
 					Intent discoverableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
 					discoverableIntent.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 0);
@@ -196,7 +202,7 @@ public class BluetoothService extends Service implements Runnable {
             mmServerSocket = mBluetoothAdapter.listenUsingRfcommWithServiceRecord("TEST_BT_XFER", UUID.fromString("550e8400-e29b-41d4-a716-446655440000"));
         } catch (IOException e) { 
 //    		Toast.makeText(getApplicationContext(), "Exception when trying to get server socket", Toast.LENGTH_SHORT).show();
-    		sendLocalClientDebugMsg("Exception when trying to get server socket");
+    		sendClientDebugMsg("Exception when trying to get server socket");
     		return false;
         }
         
@@ -234,7 +240,7 @@ public class BluetoothService extends Service implements Runnable {
 		}
 		catch(IOException e) {
     		// Toast.makeText(getApplicationContext(), "Exception when trying to close IO streams", Toast.LENGTH_SHORT).show();
-    		sendLocalClientDebugMsg("Exception when trying to close IO streams");
+    		sendClientDebugMsg("Exception when trying to close IO streams");
 		}
 		finally {
 			in = null;
@@ -264,7 +270,7 @@ public class BluetoothService extends Service implements Runnable {
 			boolean readStatus = readByteFromClient(readBuffer);
 
 			if(!readStatus) {
-	    		sendLocalClientDebugMsg("Got resp of :" + readStatus + ", exiting State machine");
+	    		sendClientDebugMsg("Got resp of :" + readStatus + ", exiting State machine");
 				break;
 			}
 
@@ -277,12 +283,12 @@ public class BluetoothService extends Service implements Runnable {
 				} else {
 					return false;
 				}
-				sendLocalClientDebugMsg("BT download PACKET_HEADER: Got header: " + readBuffer[0]);			
+				sendClientDebugMsg("BT download PACKET_HEADER: Got header: " + readBuffer[0]);			
 				break;	
 			case (PACKET_LENGTH) :
 				packet_length = packet_length | (readBuffer[0] << 8*length_byte_count);
 				
-				sendLocalClientDebugMsg("BT download PACKET_LENGTH: Got length[: " + length_byte_count + "] = " + readBuffer[0] + "; packet_length = " + packet_length);			
+				sendClientDebugMsg("BT download PACKET_LENGTH: Got length[: " + length_byte_count + "] = " + readBuffer[0] + "; packet_length = " + packet_length);			
 				length_byte_count++;
 				
 				if(length_byte_count > 3) {
@@ -291,7 +297,7 @@ public class BluetoothService extends Service implements Runnable {
 				}
 				break;
 			case (PACKET_PAYLOAD) :
-				sendLocalClientDebugMsg("BT State PACKET_PAYLOAD");			
+				sendClientDebugMsg("BT State PACKET_PAYLOAD");			
 /*				try {
 					tempFileO.write(readBuffer[0]);
 				} catch (Exception e) {
@@ -306,7 +312,7 @@ public class BluetoothService extends Service implements Runnable {
 				}
 				break;
 			case (PACKET_CRC) :
-				sendLocalClientDebugMsg("BT download PACKET_CRC: Got crc[: " + crc_byte_count + "] = " + readBuffer[0] + "; crc = " + crc);			
+				sendClientDebugMsg("BT download PACKET_CRC: Got crc[: " + crc_byte_count + "] = " + readBuffer[0] + "; crc = " + crc);			
 				crc = crc | (readBuffer[0] << 8*crc_byte_count);
 			
 				crc_byte_count++;
@@ -316,11 +322,11 @@ public class BluetoothService extends Service implements Runnable {
 					if(crc == exp_crc) {
 						// Send message to handler to indicate that file has
 						// been received correctly
-						sendLocalClientDebugMsg("BT download CHECK_CRC: Matched crc");			
+						sendClientDebugMsg("BT download CHECK_CRC: Matched crc");			
 						return true;
 					} else {
 						// discard the file we have accumulated as we have bad crc
-						sendLocalClientDebugMsg("BT download CHECK_CRC: Mis-matched crc");			
+						sendClientDebugMsg("BT download CHECK_CRC: Mis-matched crc");			
 						return false;
 					}
 				}
@@ -357,9 +363,8 @@ public class BluetoothService extends Service implements Runnable {
 			return clientReadTask.get(60, TimeUnit.SECONDS);
 		} 
 		catch (Exception e){
-			sendLocalClientDebugMsg("BT Client Read Timeout");			
+			sendClientDebugMsg("BT Client Read Timeout");			
 			return false;
 		}
-		
 	}
 }

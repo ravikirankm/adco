@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.net.ftp.FTPClient;
 
+import android.animation.ArgbEvaluator;
 import android.app.Activity;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
@@ -52,6 +53,7 @@ import android.os.ParcelFileDescriptor;
 import android.os.AsyncTask;
 import android.os.Parcelable;
 import android.os.RemoteException;
+import android.telephony.SmsManager;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -63,46 +65,27 @@ import android.bluetooth.BluetoothDevice;
 import android.hardware.usb.UsbAccessory;
 import android.hardware.usb.UsbManager;
 
-import com.google.android.DemoKit.BluetoothService.BluetoothBinder;
-import com.google.android.DemoKit.NocAccessService.LocalBinder;
-import com.google.android.gms.common.ConnectionResult;
-import com.google.android.gms.common.GooglePlayServicesUtil;
-import com.google.android.gms.gcm.GoogleCloudMessaging;
+//import com.google.android.DemoKit.BluetoothService.BluetoothBinder;
+//import com.google.android.DemoKit.NocAccessService.LocalBinder;
 
 public class DemoKitActivity extends Activity implements Runnable {
 	private static final String TAG = "DemoKit";
-
 	private boolean mPermissionRequestPending;
-	
 	private static final String siteId = "EGYPTD3322";
 	private static final String nocUrl = "75.177.179.58";
 	public static final String localHexFP = "/storage/emulated/legacy/myfolder" + "/" + "new.bin";
-
+	private static final int REQUEST_BT_ENABLE = 1;
+	private static final int REQUEST_BT_START_DISCOVERY = 2;
 	private static final int BT_MSG_HEX_FILE_AVAIL= 0;
 	private static final int BT_MSG_DEBUG= 1;
 	
-//	UsbBroadcastReceiver mUsbReceiver;
-
-	AccessoryUtils mUtils;
-//	MegaADKController mAccessoryController;
-	
 	ConnBroadcastReceiver mConnReceiver;
-	
-	private static final int MESSAGE_SWITCH = 1;
-	private static final int MESSAGE_TEMPERATURE = 2;
-	private static final int MESSAGE_LIGHT = 3;
-	private static final int MESSAGE_JOY = 4;
-	private static final int MESSAGE_ACCESSORY_NOT_READY = 5;
-
-	public static final byte LED_SERVO_COMMAND = 2;
-	public static final byte RELAY_COMMAND = 3;
-
-	private static final int REQUEST_BT_ENABLE = 1;
-	private static final int REQUEST_BT_START_DISCOVERY = 2;
-
     Context context;
-    NocAccessService mNocAccessService;
+
     public boolean mNocServiceBound;
+    NocAccessService mNocAccessService;
+    Messenger mNocAccessServiceMessenger;
+    Messenger mNocMsgHandler = null;
 
     public boolean mBluetoothServiceBound;
     Messenger mBTService= null;
@@ -113,17 +96,28 @@ public class DemoKitActivity extends Activity implements Runnable {
     Messenger mAccessoryMsgHandler = null;
     
     PeriodicScheduler mNocServiceRequestor;
+
+    protected class ServiceMsgHandler extends Handler {
+    	@Override
+    	public void handleMessage(Message msg) {
+    		switch(msg.what) {
+    		case MessagesBase.DBG_MSG:
+      			toastHandler(msg.getData().getString("debug"));
+    			break;
+    		default:
+    			super.handleMessage(msg);
+    			break;
+    		}
+    	}
+    }
     
-    protected class BluetoothMsgHandler extends Handler {
+    protected class BluetoothMsgHandler extends ServiceMsgHandler {
     	@Override
     	public void handleMessage(Message msg) {
     		switch(msg.what) {
     		case BT_MSG_HEX_FILE_AVAIL:
     			toastHandler("Got Hex file from BT Service");
     			break;
-    		case BT_MSG_DEBUG:
-  //  			toastHandler(msg.getData().getString("debug"));
-    			break;
     		default:
     			super.handleMessage(msg);
     			break;
@@ -131,84 +125,6 @@ public class DemoKitActivity extends Activity implements Runnable {
     	}
     }
     
-    protected class AccessoryMsgHandler extends Handler {
-    	@Override
-    	public void handleMessage(Message msg) {
-    		switch(msg.what) {
-    		case UsbMessages.DBG_MSG:
-    			toastHandler(msg.getData().getString("debug"));
-    			break;
-    		default:
-    			super.handleMessage(msg);
-    			break;
-    		}
-    	}
-    }
-    
-	protected class SwitchMsg {
-		private byte sw;
-		private byte state;
-
-		public SwitchMsg(byte sw, byte state) {
-			this.sw = sw;
-			this.state = state;
-		}
-
-		public byte getSw() {
-			return sw;
-		}
-
-		public byte getState() {
-			return state;
-		}
-	}
-
-	protected class TemperatureMsg {
-		private int temperature;
-
-		public TemperatureMsg(int temperature) {
-			this.temperature = temperature;
-		}
-
-		public int getTemperature() {
-			return temperature;
-		}
-	}
-
-	protected class LightMsg {
-		private int light;
-
-		public LightMsg(int light) {
-			this.light = light;
-		}
-
-		public int getLight() {
-			return light;
-		}
-	}
-
-	protected class JoyMsg {
-		private int x;
-		private int y;
-
-		public JoyMsg(int x, int y) {
-			this.x = x;
-			this.y = y;
-		}
-
-		public int getX() {
-			return x;
-		}
-
-		public int getY() {
-			return y;
-		}
-	}
-
-	public void setPermissionRequestPending(boolean val) {
-		mPermissionRequestPending = val;
-	}
-	
 	public void toastHandler(String str){
 		final String msg = str;
 		runOnUiThread(new Runnable() {
@@ -227,78 +143,47 @@ public class DemoKitActivity extends Activity implements Runnable {
 		
 //		Toast.makeText(this, "inside onCreate of DemoKitActivity", Toast.LENGTH_SHORT).show();
 		
-		// Create the USB Accessory Controller
-//		mAccessoryController = new MegaADKController(this);
-		
-		
-//		mUsbManager = UsbManager.getInstance(this);
-
 		IntentFilter connFilter = new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION);
 		mConnReceiver = new ConnBroadcastReceiver();
 		
-		// 2. ConnectivityManager
 		registerReceiver(mConnReceiver, connFilter);
 
 		setContentView(R.layout.main);
 		
-		// Create button here
-		Button sendHexButton = (Button) findViewById(R.id.button_send_hex); 
-		sendHexButton.setOnClickListener(new View.OnClickListener() {
-			
-			@Override
-			public void onClick(View v) {
-				// TODO Auto-generated method stub
-				
-			}
-		});
-
 		enableControls(true);
 		
-		mUtils = new AccessoryUtils(this);
-
 		mNocServiceRequestor = new PeriodicScheduler(new Runnable () {
 			@Override
 			public void run() {
+				if(mNocAccessServiceMessenger != null) {
+					toastHandler("Trying to upload Sensor Data");
+//					if(mConnReceiver.isConnected) {
+					Message msg = Message.obtain(null, NocMessages.URL_MSG, 0, 0);
+					Bundle msgBundle = new Bundle(); 
+					msgBundle.putString("url", "http://98.26.23.101/update.php?req=UI:WLDCTLAB1;FV:1.36;E1:0;EC1:0;E2:0;EC2:0;FL:2937;FC:0;BA:1218;TO:2181;TC:2181;FL20:0;FE:0;BL:0;HTO:0;HTC:0;BP1:0;BP2:0;GF:0;UF:1;IN:0;DT:0;TCF:0;TOF:0");
+					msg.setData(msgBundle);
+					try {
+						mNocAccessServiceMessenger.send(msg);
+					} catch (RemoteException e) {
+						
+					}
+					
+				} else {
+					toastHandler("mNocAccessServiceMessenger is null!");
+				}
 				
 			}
-		});
+		}, 5000);
 		
 		
-/*		// Generate a blue-tooth instance
-		mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-		if (mBluetoothAdapter != null) {
-		    // Device does not support Bluetooth
-			Log.d(TAG, "Got valid mBluetoothAdapter");
-       		Toast toast = Toast.makeText(getApplicationContext(), "Got valid Bluetooth Adapter",Toast.LENGTH_SHORT);
-    		toast.show();                    
-			
-			Intent discoverableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
-			discoverableIntent.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 0);
-			startActivityForResult(discoverableIntent, REQUEST_BT_START_DISCOVERY);
-		
-		}
-*/
-/*		if (!mBluetoothAdapter.isEnabled()) {
-		    enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-		    startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
-		}
-*/	
 		mBTMsgHandler = new Messenger(new BluetoothMsgHandler());
-		
-		mAccessoryMsgHandler = new Messenger(new AccessoryMsgHandler());
+		mAccessoryMsgHandler = new Messenger(new ServiceMsgHandler());
+		mNocMsgHandler = new Messenger (new ServiceMsgHandler());
 	}
 
 	@Override
 	public Object onRetainNonConfigurationInstance() {
 		
-/*		UsbAccessory mAccessory = mAccessoryController.getAccessory();
-		
-		if (mAccessory != null) {
-			return mAccessory;
-		} else {
-			return super.onRetainNonConfigurationInstance();
-		}
-*/	
 		return super.onRetainNonConfigurationInstance();
 		
 	}
@@ -311,10 +196,10 @@ public class DemoKitActivity extends Activity implements Runnable {
         Intent nocServiceIntent = new Intent(this, NocAccessService.class);
 		bindService(nocServiceIntent, mNocConnection, Context.BIND_AUTO_CREATE);
 		
-		Intent btServiceIntent = new Intent(this, BluetoothService.class);
+/*		Intent btServiceIntent = new Intent(this, BluetoothService.class);
 		bindService(btServiceIntent, mBTConnection, Context.BIND_AUTO_CREATE);
-
-		Intent accessoryIntent = new Intent(this, AccessoryController.class);
+*/
+		Intent accessoryIntent = new Intent(this, MegaADKController.class);
 		bindService(accessoryIntent, mAccessoryConnection, Context.BIND_AUTO_CREATE);
     
     }
@@ -323,11 +208,39 @@ public class DemoKitActivity extends Activity implements Runnable {
 	@Override
 	public void onResume() {
 		super.onResume();
-
-//		Toast.makeText(this, "inside onResume of DemoKitActivity", Toast.LENGTH_SHORT).show();
-
-		Intent intent = getIntent();
 		
+		mNocServiceRequestor.startUpdates();
+		
+		if(mAccessoryController == null) {
+//			Toast.makeText(this, "onResume of DemoKitActivity - Accessory Controller is null", Toast.LENGTH_SHORT).show();
+		} else {
+			try {
+				mAccessoryController.send(Message.obtain(null, UsbMessages.START_CONTROLLER, 0, 0));
+			} catch (RemoteException e) {};
+		}
+		
+/*		SmsManager smsMgr = SmsManager.getDefault();
+		
+		try {
+			Toast.makeText(context, "Trying to send SMS...", Toast.LENGTH_SHORT).show();
+			smsMgr.sendTextMessage("9197445298", null, "Test message from Galaxy S4", null, null);
+		} catch (IllegalArgumentException e) {
+			Toast.makeText(context, "Got Exception when trying to send SMS", Toast.LENGTH_SHORT).show();
+		}
+*/		
+	}
+	
+	@Override
+	protected void onNewIntent(Intent intent) {
+		super.onNewIntent(intent);
+	
+		String action = intent.getAction();
+		if(action.equals(UsbManager.ACTION_USB_ACCESSORY_ATTACHED)) {
+			try {
+				mAccessoryController.send(Message.obtain(null, UsbMessages.ACCESSORY_ATTACHED, 0, 0));
+			} catch (RemoteException e) {};
+		}
+
 	}
 	
 	/** Defines callbacks for service binding, passed to bindService() */
@@ -336,9 +249,18 @@ public class DemoKitActivity extends Activity implements Runnable {
         @Override
         public void onServiceConnected(ComponentName className,
                 IBinder service) {
-            // We've bound to LocalService, cast the IBinder and get LocalService instance
-            LocalBinder binder = (LocalBinder) service;
-            mNocAccessService = binder.getService();
+    		Toast.makeText(context, "inside onServiceConnected of mNocConnection", Toast.LENGTH_SHORT).show();    		
+
+        	mNocAccessServiceMessenger = new Messenger (service);
+        	
+    		Message msg = Message.obtain(null, MessagesBase.SET_CLIENT_MSG,0,0);
+    		msg.replyTo = mNocMsgHandler;
+    		
+    		try {
+    			mNocAccessServiceMessenger.send(msg);
+    		} catch (RemoteException e) {
+    			
+    		}
             mNocServiceBound = true;
         }
 
@@ -352,13 +274,8 @@ public class DemoKitActivity extends Activity implements Runnable {
     	
     	@Override
     	public void onServiceConnected(ComponentName className, IBinder service) {
-/*    		BluetoothBinder binder = (BluetoothBinder) service;
-    		mBluetoothService = binder.getService();
-    		Thread mBluetoothServiceThread = new Thread(mBluetoothService);
-    		mBluetoothServiceThread.start();
-*/    		
     		mBTService= new Messenger (service);
-    		Message msg = Message.obtain(null, 0,0,0);
+    		Message msg = Message.obtain(null, MessagesBase.SET_CLIENT_MSG,0,0);
     		msg.replyTo = mBTMsgHandler;
     		try {
     			mBTService.send(msg);
@@ -378,20 +295,21 @@ public class DemoKitActivity extends Activity implements Runnable {
     	
     	@Override
     	public void onServiceConnected(ComponentName className, IBinder service) {
+//    		Toast.makeText(context, "inside onServiceConnected of AccessoryConnection", Toast.LENGTH_SHORT).show();    		
     		mAccessoryController = new Messenger (service);
-    		Message msg = Message.obtain(null, 0,0,0);
-    		msg.replyTo = mBTMsgHandler;
+    		Message msg = Message.obtain(null, UsbMessages.SET_CLIENT_MSG,0,0);
+    		msg.replyTo = mAccessoryMsgHandler;
     		try {
-    			mBTService.send(msg);
+    			mAccessoryController.send(msg);
     		} catch (RemoteException e) {
     			
     		}
-    		mBluetoothServiceBound = true;
+    		mAccessoryBound = true;
     	}
     	
     	@Override
     	public void onServiceDisconnected(ComponentName arg0) {
-    		mBluetoothServiceBound = false;
+    		mAccessoryBound = false;
     	}
     };
 
@@ -399,9 +317,18 @@ public class DemoKitActivity extends Activity implements Runnable {
     @Override
 	public void onPause() {
 		super.onPause();
-//		Toast.makeText(this, "inside onPause of DemoKitActivity", Toast.LENGTH_SHORT).show();
-//		mAccessoryFsm.stopUpdates();
-	}
+		if(mAccessoryController == null) {
+//			Toast.makeText(this, "onPause of DemoKitActivity - Accessory Controller is null", Toast.LENGTH_SHORT).show();
+			return;
+		} else {
+
+			try { 
+				mAccessoryController.send(Message.obtain(null, UsbMessages.STOP_CONTROLLER, 0, 0));
+			} 
+			catch (RemoteException e) {};
+		}
+
+    }
 
     @Override
     protected void onStop() {
@@ -411,16 +338,15 @@ public class DemoKitActivity extends Activity implements Runnable {
             unbindService(mNocConnection);
             mNocServiceBound = false;
         }
+        mNocServiceRequestor.stopUpdates();
+        
     }
 	
 	@Override
 	public void onDestroy() {
 		Toast.makeText(this, "inside onDestroy of DemoKitActivity", Toast.LENGTH_SHORT).show();
 
-//		unregisterReceiver(mUsbReceiver);
 		unregisterReceiver(mConnReceiver);
-//		mAccessoryController.closeAccessory();
-		
 		super.onDestroy();
 	}
 
@@ -444,161 +370,20 @@ public class DemoKitActivity extends Activity implements Runnable {
 		return nocUrl;
 	}
 
-	private int composeInt(byte hi, byte lo) {
-		int val = (int) hi & 0xff;
-		val *= 256;
-		val += (int) lo & 0xff;
-		return val;
-	}
-
-	
 	public void run() {
-		int ret = 0;
-		byte[] buffer = new byte[16384];
-		int i;
-
-/*		while (ret >= 0) {
-			try {
-				ret = mInputStream.read(buffer);
-			} catch (IOException e) {
-				break;
-			}
-
-			i = 0;
-			while (i < ret) {
-				int len = ret - i;
-
-				switch (buffer[i]) {
-				case 0x1:
-					if (len >= 3) {
-						Message m = Message.obtain(mHandler, MESSAGE_SWITCH);
-						m.obj = new SwitchMsg(buffer[i + 1], buffer[i + 2]);
-						mHandler.sendMessage(m);
-					}
-					i += 3;
-					break;
-
-				case 0x4:
-					
-					if (len >= 3) {
-						Message m = Message.obtain(mHandler,
-								MESSAGE_TEMPERATURE);
-						m.obj = new TemperatureMsg(composeInt(buffer[i + 1],
-								buffer[i + 2]));
-						mHandler.sendMessage(m);
-					}
-					i += 3;
-					break;
-
-				case 0x5:
-					if (len >= 3) {
-						Message m = Message.obtain(mHandler, MESSAGE_LIGHT);
-						m.obj = new LightMsg(composeInt(buffer[i + 1],
-								buffer[i + 2]));
-						mHandler.sendMessage(m);
-					}
-					i += 3;
-					break;
-
-				case 0x6:
-					if (len >= 3) {
-						Message m = Message.obtain(mHandler, MESSAGE_JOY);
-						m.obj = new JoyMsg(buffer[i + 1], buffer[i + 2]);
-						mHandler.sendMessage(m);
-					}
-					i += 3;
-					break;
-
-				default:
-					Log.d(TAG, "unknown msg: " + buffer[i]);
-					i = len;
-					break;
-				}
-			}
-
-		}
-*/	}
-
-	Handler mHandler = new Handler() {
-		@Override
-		public void handleMessage(Message msg) {
-			switch (msg.what) {
-			case MESSAGE_SWITCH:
-				SwitchMsg o = (SwitchMsg) msg.obj;
-				handleSwitchMessage(o);
-				break;
-
-			case MESSAGE_TEMPERATURE:
-				TemperatureMsg t = (TemperatureMsg) msg.obj;
-				handleTemperatureMessage(t);
-				break;
-
-			case MESSAGE_LIGHT:
-				LightMsg l = (LightMsg) msg.obj;
-				handleLightMessage(l);
-				break;
-
-			case MESSAGE_JOY:
-				JoyMsg j = (JoyMsg) msg.obj;
-				handleJoyMessage(j);
-				break;
-
-			}
-		}
-	};
-
-	public boolean sendCommand() {
-		boolean status = false;
-		
-/*		switch (cmd) {
-		case (USB_CMD_GET_ALIVENESS):
-			
-			break;
-		case (USB_CMD_SET_SETTINGS): 
-			break;
-		case (USB_CMD_GET_SETTINGS): 
-			break;
-		case (USB_CMD_RESET_ACCESSORY): 
-			break;
-		case (USB_CMD_GET_DATA):
-			break;
-		case (USB_CMD_SEND_HEX):
-			break;
-		}
-*/		
-		return status;
-	}
-	
-	public void sendHexFile() {
-		
-	}
-	
-	public void sendPacket(byte [] packet) {
-		
-	}
-	
-	public byte[] getRspPacket() {
-		
-		byte[] rsp = new byte[10];
-		
-		return rsp;
 	}
 
-	protected void handleJoyMessage(JoyMsg j) {
+	public void onClickSendHexFile(View v) {
+		Toast.makeText(this, "Click received from Send Hex File", Toast.LENGTH_SHORT).show();
+		try {
+			mAccessoryController.send(Message.obtain(null, UsbMessages.SEND_HEX, 0, 0));
+		} catch (RemoteException e) {};
 	}
 
-	protected void handleLightMessage(LightMsg l) {
-	}
-
-	protected void handleTemperatureMessage(TemperatureMsg t) {
-	}
-
-	protected void handleSwitchMessage(SwitchMsg o) {
-	}
-
-	public void onStartTrackingTouch(SeekBar seekBar) {
-	}
-
-	public void onStopTrackingTouch(SeekBar seekBar) {
+	public void onClickSetSettings(View v) {
+		Toast.makeText(this, "Click received from Set Settings", Toast.LENGTH_SHORT).show();
+		try {
+			mAccessoryController.send(Message.obtain(null, UsbMessages.SET_SETTINGS, 0, 0));
+		} catch (RemoteException e) {};
 	}
 }

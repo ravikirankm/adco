@@ -16,18 +16,22 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.AsyncTask;
+import android.os.Message;
 import android.os.ParcelFileDescriptor;
+import android.widget.Toast;
 
-public class MegaADKController extends AccessoryController implements Runnable {
+public class MegaADKController extends AccessoryController {
 	
 	public static final int USB_CMD_SET_SETTINGS = 0x1;
 	public static final int USB_CMD_GET_SETTINGS = 0x2;
 	public static final int USB_CMD_GET_DATA = 0x3;
 	public static final int USB_CMD_GET_ALIVENESS = 0x4;
 	public static final int USB_CMD_RESET_ACCESSORY = 0x5;
-	public static final int USB_CMD_SEND_HEX = 0x6;
-	public static final int USB_CMD_ERROR = 0x7;
-	public static final int USB_CMD_ACK = 0x8;
+	public static final int USB_CMD_HEX_START = 0x6;
+	public static final int USB_CMD_HEX_DATA = 0x7;
+	public static final int USB_CMD_HEX_END = 0x8;
+	public static final int USB_CMD_ACK = 0x9;
+	public static final int USB_CMD_ERROR = 0xa;
 
 	private static final int USB_STATE_IDLE = 0x1;
 	private static final int USB_STATE_CHECK_ALIVENESS = 0x2;
@@ -36,17 +40,19 @@ public class MegaADKController extends AccessoryController implements Runnable {
 	private static final int USB_STATE_UPDATE_HEX = 0x5;
 	
 	private static final int USB_STATUS_DATA_AVAILABLE_MASK = 0x1;
-
+	private static final int MAX_PAYLOAD_BYTES = 56;
+	
 	private static final int USB_READ_TIMEOUT = 1000;
 	public static final String ACTION_USB_PERMISSION = "com.google.android.DemoKit.action.USB_PERMISSION";
-	public static final String localHexFP = "/storage/emulated/legacy/myfolder" + "/" + "new.bin";
+	public static final String localHexFP = "/storage/emulated/legacy/myfolder" + "/" + "test.bin";
 
 	private int next_state = USB_STATE_IDLE;
 	private int curr_state = USB_STATE_IDLE;
 	
 	private boolean mAccessoryReady;
 	private boolean mHexXferInProg;
-
+	private boolean mUpdateSettingsFlag;
+	private boolean mSendHexFlag;
 
 	private Object usbIOLock = new Object();
 
@@ -57,15 +63,15 @@ public class MegaADKController extends AccessoryController implements Runnable {
 	
 	private UsbManager mUsbManager;
 	private UsbBroadcastReceiver mUsbReceiver;
-    PeriodicScheduler mAccessoryFsm;
 	
-	public MegaADKController(DemoKitActivity activity) {
-		super(activity);
+	public MegaADKController() {
 		// TODO Auto-generated constructor stub
 	}
 	
 	@Override
 	public void onCreate() {
+		super.onCreate();
+		
 		IntentFilter usbFilter = new IntentFilter(ACTION_USB_PERMISSION);
 		usbFilter.addAction(UsbManager.ACTION_USB_ACCESSORY_ATTACHED);
 		usbFilter.addAction(UsbManager.ACTION_USB_ACCESSORY_DETACHED);
@@ -76,22 +82,16 @@ public class MegaADKController extends AccessoryController implements Runnable {
 		// 1. USB
 		registerReceiver(mUsbReceiver, usbFilter);
 		
-		mAccessoryFsm = new PeriodicScheduler(this, 15000);
-		
 		openAccessory();
-		
-		// Start the periodic Accessory checker
-		mAccessoryFsm.startUpdates();
-		
 	}
 
 	@Override
 	public void onDestroy() {
-		mAccessoryFsm.stopUpdates();
+		super.onDestroy();
+		
 		unregisterReceiver(mUsbReceiver);
 		
 	}
-	
 
 	@Override
 	protected void onAccesssoryAttached() {
@@ -117,22 +117,17 @@ public class MegaADKController extends AccessoryController implements Runnable {
 		buffer[3] = (byte) (req.length >> 16);
 		buffer[4] = (byte) (req.length >> 24);
 		
-		crc += req.cmd + req.length;
-		
 		for(int i = 0; i < req.length; i++) {
 			buffer[5 + i] = (byte) req.payld[i];
-			crc += req.payld[i];
 		}
 
+		crc = req.calcCrc();
+		
 		// Generate the CRC here
 		buffer[req.length + 5] = (byte) crc;
 		buffer[req.length + 5 + 1] = (byte) (crc>>8);
 		
-		for (int i = 0; i < buffer.length; i++){
-			byte [] temp = new byte[1];
-			temp[0] = buffer[i];
-			usbWrite(temp);
-		}
+		usbWrite(buffer);
 	}
 	
 	private void sendAckPacket() {
@@ -149,8 +144,16 @@ public class MegaADKController extends AccessoryController implements Runnable {
 		int pktLen;
 		
 		
-		sendClientDebugMsg("Trying to get rsp from accessory...");
+//		sendClientDebugMsg("Trying to get rsp from accessory...");
 		pktLen = usbRead(cmdBuffer);
+		
+		String temp = "";
+		
+		for(int i=0; i< pktLen; i++) {
+			Integer temp_int = (int) cmdBuffer[i];
+			temp = temp + Integer.toHexString(temp_int & 0xff) + " ";
+		}
+//		sendClientDebugMsg("CMD buffer " + temp);
 
 		if(pktLen >= 7) {
 			// check that the rsp cmd matches the req
@@ -158,47 +161,48 @@ public class MegaADKController extends AccessoryController implements Runnable {
 				
 //				sendClientDebugMsg("Got CMD response from Accessory " + cmdBuffer[bPtr]);
 				
-				rsp = new AccessoryPacket();
+//				rsp = new AccessoryPacket();
 				rsp.cmd = cmdBuffer[bPtr];
-				crc += cmdBuffer[bPtr];
+				crc += ((int) cmdBuffer[bPtr]) & 0x00ff;
 				bPtr++;
 				// Get the length, which is the next four bytes
 				for(int i = 0; i < 4; i++) {
-					byte [] lenBuffer = new byte[1]; 
+//					byte [] lenBuffer = new byte[1]; 
 					length = length | (cmdBuffer[bPtr] << (8*i));
-					crc += cmdBuffer[bPtr];
+					crc += ((int) cmdBuffer[bPtr]) & 0x00ff;
 					bPtr++;
 				}
 //				sendClientDebugMsg("Got CMD length from Accessory " + length);
 				
-				if(pktLen < length + 7) {
-					sendClientDebugMsg("CMD length less than pkt length - discarding packet");
-					rsp = null;
+				if((pktLen < length + 7) || (length < 0)) {
+					sendClientDebugMsg("CMD length less than pkt length and/or negative length - discarding packet");
 					return false;
 				}
 				
 				rsp.length = length;
-				rsp.payld = new int[length];
+				rsp.payld = new byte[length];
 				
 				// Get the payload, which is the number of bytes given by length
 				for(int i = 0; i < length; i++) {
-					byte [] payldBuffer = new byte[1];
-					rsp.payld[i] = (int) cmdBuffer[bPtr];
-					crc += cmdBuffer[bPtr];
+					rsp.payld[i] = cmdBuffer[bPtr];
+					crc += ((int) cmdBuffer[bPtr]) & 0x00ff;
 					bPtr++;
 				}
 				
+				rsp.crc = 0;
+				
 				// Get the crc, which is the next 2 bytes
 				for(int i = 0; i < 2; i++) {
-					byte [] crcBuffer = new byte[1];
-					rsp.crc = rsp.crc | (cmdBuffer[bPtr] << (8*i));
+//					byte [] crcBuffer = new byte[1];
+					rsp.crc = rsp.crc | ((((int) cmdBuffer[bPtr]) & 0x00ff) << (8*i));
 					bPtr++;
 				}
 //				sendClientDebugMsg("Got CRC from Accessory " + rsp.crc);
 				
 				// Discard response if crc fails
 				if(crc != rsp.crc) {
-					sendClientDebugMsg("Got CRC error, discarding response");
+					sendClientDebugMsg("Got CRC error, discarding response; Exp CRC: " + crc + "RX CRC: " + rsp.crc);
+					return false;
 				}
 				return true;
 			}
@@ -217,37 +221,34 @@ public class MegaADKController extends AccessoryController implements Runnable {
 	protected boolean initiateHostXfer(AccessoryPacket req, AccessoryPacket rsp) {
 
 		switch(req.cmd) {
-		case (USB_CMD_GET_ALIVENESS):
-			sendCmdPacket(req);
-			return getCmdRspPacket(req, rsp);
-		case (USB_CMD_SET_SETTINGS):
-			sendCmdPacket(req);
-			return getCmdRspPacket(req,rsp);
-		case (USB_CMD_GET_SETTINGS):
-			sendCmdPacket(req);
-			return getCmdRspPacket(req,rsp);
-		case (USB_CMD_RESET_ACCESSORY): 
-			sendCmdPacket(req);
-			return getCmdRspPacket(req,rsp);
-		case (USB_CMD_GET_DATA):
-			sendCmdPacket(req);
-			if(getCmdRspPacket(req,rsp)) {
-				sendAckPacket();
-				return true;
+			// For all packets except GET DATA, we send a req and get back a rsp
+			case USB_CMD_GET_ALIVENESS: {}; 
+			case USB_CMD_SET_SETTINGS: {};
+			case USB_CMD_GET_SETTINGS: {};
+			case USB_CMD_RESET_ACCESSORY: {};
+			case USB_CMD_HEX_START: {};
+			case USB_CMD_HEX_DATA: {};
+			case USB_CMD_HEX_END:
+				sendCmdPacket(req);
+				return getCmdRspPacket(req, rsp);
+			case (USB_CMD_GET_DATA): {
+				sendCmdPacket(req);
+				if(getCmdRspPacket(req,rsp)) {
+					sendAckPacket();
+					return true;
+				}
+				break;
 			}
-		case (USB_CMD_SEND_HEX):
-			sendCmdPacket(req);
-			getCmdRspPacket(req,rsp);
-			break;
- 		}
-		
+		}
 		return false;
 	}
 	
-	public void run() {
+	@Override
+	public void accessoryFSM() {
 
 		if(!mAccessoryReady) {
-//			sendClientDebugMsg("USB Accessory is not ready");
+			sendClientDebugMsg("USB Accessory is not ready");
+//			openAccessory();
 			return;
 		}
 		
@@ -264,7 +265,12 @@ public class MegaADKController extends AccessoryController implements Runnable {
 				case(USB_STATE_IDLE): 
 				{
 					next_state = USB_STATE_CHECK_ALIVENESS;
-//				sendClientDebugMsg("USB state machine STATE_IDLE");
+					if(mUpdateSettingsFlag) {
+						next_state = USB_STATE_UPDATE_SETTINGS;
+					}else if(mSendHexFlag) {
+						next_state = USB_STATE_UPDATE_HEX;
+					}
+//					sendClientDebugMsg("USB state machine STATE_IDLE");
 					break;
 				}
 				case(USB_STATE_CHECK_ALIVENESS) :
@@ -275,13 +281,13 @@ public class MegaADKController extends AccessoryController implements Runnable {
 	
 					req.cmd = USB_CMD_GET_ALIVENESS;
 					req.length = 0;
-	
-	//				sendClientDebugMsg("USB state machine STATE_CHECK_ALIVENESS");
+//					sendClientDebugMsg("USB state machine STATE_CHECK_ALIVENESS");
 					boolean status = initiateHostXfer(req, rsp);
-					
+//					sendClientDebugMsg("Sent cmd: " + req.cmd + " Length: " + req.length + ", CRC: " + req.crc);					
+	
 					// Check if we got a successful response from Accessory
 					if(status) {
-						sendClientDebugMsg("Got Rsp of " + rsp.cmd + " - Length: " + rsp.length + ", CRC: " + rsp.crc);
+//						sendClientDebugMsg("Got Rsp: " + rsp.cmd + " Length: " + rsp.length + ", CRC: " + rsp.crc);
 						
 						// check if we got an error response
 						if(rsp.cmd == USB_CMD_ERROR) {
@@ -291,6 +297,8 @@ public class MegaADKController extends AccessoryController implements Runnable {
 						if((rsp.payld[0] & USB_STATUS_DATA_AVAILABLE_MASK) != 0) {
 							next_state = USB_STATE_GET_DATA;
 						} 
+					} else {
+						sendClientDebugMsg("USB_CMD_GET_ALIVENESS Rsp Failed");
 					}
 					break;
 				}
@@ -305,10 +313,12 @@ public class MegaADKController extends AccessoryController implements Runnable {
 	
 	//				sendClientDebugMsg("USB state machine STATE_GET_DATA");
 					boolean status = initiateHostXfer(req, rsp);
+
+//					sendClientDebugMsg("Sent cmd: " + req.cmd + " Length: " + req.length + ", CRC: " + req.crc);					
 					
 					// Check if we got a successful response from Accessory
 					if(status) {
-						sendClientDebugMsg("Got Rsp of " + rsp.cmd + " - Length: " + rsp.length + ", CRC: " + rsp.crc);
+//						sendClientDebugMsg("Got Rsp: " + rsp.cmd + " Length: " + rsp.length + ", CRC: " + rsp.crc);
 						
 						// check if we got an error response
 						if(rsp.cmd == USB_CMD_ERROR) {
@@ -316,10 +326,14 @@ public class MegaADKController extends AccessoryController implements Runnable {
 							break;
 						}
 					}
+					else {
+						sendClientDebugMsg("USB_CMD_GET_DATA Rsp Failed");
+					}
 					break;
 				}
 				case (USB_STATE_UPDATE_SETTINGS) :
 				{
+					next_state = USB_STATE_IDLE;
 					AccessoryPacket getSettingReq = new AccessoryPacket();
 					AccessoryPacket getSettingRsp = new AccessoryPacket();
 					AccessoryPacket setSettingReq = new AccessoryPacket();
@@ -331,7 +345,7 @@ public class MegaADKController extends AccessoryController implements Runnable {
 					boolean getStatus = initiateHostXfer(getSettingReq, getSettingRsp);
 					
 					if(getStatus) {
-						sendClientDebugMsg("Got Rsp of " + getSettingRsp.cmd + " - Length: " + getSettingRsp.length + ", CRC: " + getSettingRsp.crc);
+//						sendClientDebugMsg("Got Rsp of " + getSettingRsp.cmd + " - Length: " + getSettingRsp.length + ", CRC: " + getSettingRsp.crc);
 
 						// check if we got an error response
 						if(getSettingRsp.cmd == USB_CMD_ERROR) {
@@ -345,17 +359,32 @@ public class MegaADKController extends AccessoryController implements Runnable {
 						
 						boolean setStatus = initiateHostXfer(setSettingReq, setSettingRsp);
 						if(setStatus) {
-							sendClientDebugMsg("Got Rsp of " + setSettingRsp.cmd + " - Length: " + setSettingRsp.length + ", CRC: " + setSettingRsp.crc);
+//							sendClientDebugMsg("Got Rsp of " + setSettingRsp.cmd + " - Length: " + setSettingRsp.length + ", CRC: " + setSettingRsp.crc);
 
 							// check if we got an error response
 							if(setSettingRsp.cmd == USB_CMD_ERROR) {
 								sendClientDebugMsg("Got error response from Accessory");
 								break;
 							}
+						} else {
+							sendClientDebugMsg("USB_CMD_SET_SETTINGS Rsp Failed");
+							return;
 						}
 						// Signal that update settings was successful
 						sendClientDebugMsg("Set settings successfully!");
+						mUpdateSettingsFlag = false;
+					} else {
+						sendClientDebugMsg("USB_CMD_GET_SETTINGS Rsp Failed");
 					}
+				}
+				case (USB_STATE_UPDATE_HEX) : 
+				{
+					next_state = USB_STATE_IDLE;
+					boolean status = sendHexFile();
+					if(status) {
+						sendClientDebugMsg("Sent Hex File Succesfully!");
+					}
+					mSendHexFlag = false;
 				}
 			}
 		
@@ -383,17 +412,17 @@ public class MegaADKController extends AccessoryController implements Runnable {
 		
 		if (accessory != null) {
 //			mAccessory = accessory;
-			if (mUsbManager.hasPermission(accessory)) {
+//			if (mUsbManager.hasPermission(accessory)) {
 				sendClientDebugMsg("Opening accessory");
 				openAccessoryIO(accessory);
-			} else {
+/*			} else {
 				PendingIntent mPermissionIntent = PendingIntent.getBroadcast(this, 0, new Intent(
 						ACTION_USB_PERMISSION), 0);
 
 //				sendClientDebugMsg("Requesting Permission");
 				mUsbManager.requestPermission(accessory, mPermissionIntent);
 			}
-		} else {
+*/		} else {
 			sendClientDebugMsg("Accessory is null");
 		}
 		
@@ -403,14 +432,16 @@ public class MegaADKController extends AccessoryController implements Runnable {
 		
 		if(mFileDescriptor == null) {
 			mFileDescriptor = mUsbManager.openAccessory(accessory);
-			sendClientDebugMsg("Obtaining new File Descriptor from UsbManager");
+//			sendClientDebugMsg("Obtaining new File Descriptor from UsbManager");
 		}
 
 		if (mFileDescriptor != null) {
 //			mAccessory = accessory;
 			FileDescriptor fd = mFileDescriptor.getFileDescriptor();
-			mInputStream = new FileInputStream(fd);
-			mOutputStream = new FileOutputStream(fd);
+			synchronized(usbIOLock) {
+				mInputStream = new FileInputStream(fd);
+				mOutputStream = new FileOutputStream(fd);
+			}
 			mAccessoryReady = true;
 //			mHostActivity.enableControls(true);
 		} else {
@@ -453,6 +484,7 @@ public class MegaADKController extends AccessoryController implements Runnable {
 	}
 
 	public boolean usbWrite(byte [] writeBuffer) {
+//		sendClientDebugMsg("Tying to write buffer to Accessory");
 		synchronized(usbIOLock) {
 			try {
 				if(mOutputStream != null) {
@@ -518,93 +550,129 @@ public class MegaADKController extends AccessoryController implements Runnable {
 		}
 	}
 
-	public void sendHexFile() {
+	public boolean sendHexFile() {
 
-		if(!mAccessoryReady) {
-//	   		Toast.makeText(mHostActivity, "Accessory is not ready",Toast.LENGTH_SHORT).show();
-			return;
+//		byte[] buffer = new byte[5];
+//		int failed_write_bytes = 0, bytes_sent = 0;
+		byte[] payld = new byte[MAX_PAYLOAD_BYTES];
+		int payld_cnt = 0;
+		int byte_cnt = 0;
+		int hex_crc = 0;
+					
+		AccessoryPacket hexStartReq = new AccessoryPacket();
+		AccessoryPacket hexStartRsp = new AccessoryPacket();
+
+		int currByte;
+		FileInputStream hexFileFIO = null;
+		File hexFile = new File(localHexFP);
+		int hexFileLen = (int) hexFile.length();
+
+		hexStartReq.cmd = USB_CMD_HEX_START;
+		// The hex file size is fixed to 32-bits or 4 bytes
+		hexStartReq.length = 4;
+		hexStartReq.payld = new byte[4];
+
+		hexStartReq.payld[0] = (byte) hexFileLen;
+		hexStartReq.payld[1] = (byte) (hexFileLen >> 8);
+		hexStartReq.payld[2] = (byte) (hexFileLen >> 16);
+		hexStartReq.payld[3] = (byte) (hexFileLen >> 24);
+					
+		try {
+			hexFileFIO = new FileInputStream(hexFile);
+						
+		} catch (FileNotFoundException e) {
+//			mHexXferInProg = false;
+			sendClientDebugMsg("Unable to open hex file for reading");
+			return false;
 		}
-		
-		if(mHexXferInProg) {
-//	   		Toast.makeText(mHostActivity, "Thread already running",Toast.LENGTH_SHORT).show();
-			return;
-		}
-
-		mHexXferInProg = true;
-		
-		new Thread(
-			new Runnable() {
-				public void run() {
 					
-					byte[] buffer = new byte[5];
-					int failed_write_bytes = 0, bytes_sent = 0;
+		sendClientDebugMsg("Sending Hex Start... Hex File Length = " + hexFileLen);
 
-					int currByte;
-					FileInputStream hexFileFIO = null;
-					File hexFile = new File(localHexFP);
-					long hexFileLen = hexFile.length();
+		if(!initiateHostXfer(hexStartReq, hexStartRsp)) return false;
+//		sendClientDebugMsg("Sent cmd: " + hexStartReq.cmd + " Length: " + hexStartReq.length + ", CRC: " + hexStartReq.crc);					
 
-					try {
-						hexFileFIO = new FileInputStream(hexFile);
-						
-					} catch (FileNotFoundException e) {
-						mHexXferInProg = false;
-						sendClientDebugMsg("Unable to open hex file for reading");
-						return;
-						
-					}
-					
-					sendClientDebugMsg("Sending Hex File... " + String.valueOf(hexFileLen) + "bytes");
-					
-					buffer[0] = 0x1;
-					buffer[1] = (byte) hexFileLen;
-					buffer[2] = (byte) (hexFileLen >> 8);
-					buffer[3] = (byte) (hexFileLen >> 16);
-					buffer[4] = (byte) (hexFileLen >> 24);
-					try {
-						if(!usbWrite(buffer)) { 
-							hexFileFIO.close();
-							mHexXferInProg = false;
-							return;
-						}
-						
-						while((currByte = hexFileFIO.read()) != -1) {
-							byte[] payld = new byte[1];
-							payld[0] = (byte) currByte;
+		try {
+			while((byte_cnt = hexFileFIO.read(payld, 0, MAX_PAYLOAD_BYTES)) > 0) {
 
-							if(bytes_sent > hexFileLen) {
-								sendClientDebugMsg("Sent bytes = " + bytes_sent + " currByte = " + currByte);
-						   		break;
-							}
-							
-							if(usbWrite(payld)) {
-								bytes_sent++;
-							} else {
-								sendClientDebugMsg("Write to output stream failed");
-								failed_write_bytes++;
-								hexFileFIO.close();
-								mHexXferInProg = false;
-								return;
-							}
-						}
+				AccessoryPacket hexDataReq = new AccessoryPacket();
+				AccessoryPacket hexDataRsp = new AccessoryPacket();
 
-						sendClientDebugMsg("Done sending Hex File! (missed bytes = " + 
-				   				failed_write_bytes +
-				   				"bytes_sent = " +
-				   				bytes_sent +
-				   				")");
-						
-					} catch (IOException e){
-						sendClientDebugMsg("Reading Hex file failed:" + e);
-						mHexXferInProg = false;
-						return;
-					}
-					mHexXferInProg = false;
-					mAccessoryReady = false;
+//				sendClientDebugMsg("Sending Hex Data ... ");
+				
+				hexDataReq.cmd = USB_CMD_HEX_DATA;
+				hexDataReq.length = byte_cnt;
+				hexDataReq.payld = payld;
+				
+				hex_crc += hexDataReq.calcCrc() - hexDataReq.cmd - hexDataReq.length;
 
-				}					
+				if(!initiateHostXfer(hexDataReq, hexDataRsp)) return false;
 			}
-		).start();
+		} catch (IOException e) {
+			sendClientDebugMsg("Unable to read Hex File.");
+			return false;
+		}
 
+		AccessoryPacket hexEndReq = new AccessoryPacket();
+		AccessoryPacket hexEndRsp = new AccessoryPacket();
+		
+		hexEndReq.cmd = USB_CMD_HEX_END;
+		hexEndReq.length = 2;
+		hexEndReq.payld = new byte[2];
+		hexEndReq.payld[0] = (byte) hex_crc;
+		hexEndReq.payld[1] = (byte) (hex_crc >> 8);
+		sendClientDebugMsg("Sending Hex End... ");
+		if(!initiateHostXfer(hexEndReq, hexEndRsp)) return false;
+		
+		return true;
 	}
+
+	@Override
+	public void doOnIncomingMsg(Message msg) {
+		switch (msg.what) {
+			case (UsbMessages.ACCESSORY_ATTACHED) : {
+				openAccessory();
+				mAccessoryFsm = new PeriodicScheduler(this, 60000);
+				// Start the periodic Accessory checker
+				mAccessoryFsm.startUpdates();
+				break;
+			}
+/*			case (UsbMessages.SET_CLIENT_MSG) : {
+//				Toast.makeText(getApplicationContext(), "Got client messenger", Toast.LENGTH_SHORT).show();
+				mClientMessenger = msg.replyTo;
+				if(mClientMessenger == null) {
+					Toast.makeText(getApplicationContext(), "Got null client messenger", Toast.LENGTH_SHORT).show();
+				}
+				break;
+			}
+*/			case (UsbMessages.START_CONTROLLER) : {
+//				sendClientDebugMsg("Accessory Controller : Got Start Command...");
+/*				mAccessoryFsm = new PeriodicScheduler(this, 15000);
+				// Start the periodic Accessory checker
+				mAccessoryFsm.startUpdates();
+*/				break;
+			}
+			case (UsbMessages.STOP_CONTROLLER) : {
+				if(mAccessoryFsm != null) {
+					mAccessoryFsm.stopUpdates();
+				}
+				break;
+			}
+			case (UsbMessages.SET_SETTINGS) : {
+				mUpdateSettingsFlag = true;
+				Thread setSettingsThread = new Thread(this);
+				setSettingsThread.start();
+				break;
+			}
+			case (UsbMessages.SEND_HEX) : {
+				mSendHexFlag = true;
+				Thread sendHexThread = new Thread(this);
+				sendHexThread.start();
+				break;
+			}
+			default : {
+				super.doOnIncomingMsg(msg);
+			}
+		}
+	}
+	
 }

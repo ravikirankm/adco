@@ -21,9 +21,6 @@
 	<FrameLayout android:layout_width="match_parent"
 		android:layout_height="wrap_content" android:orientation="vertical"
 		android:paddingLeft="10dip" android:paddingRight="10dip">
-<!--  		<include layout="@layout/inputcontainer" android:id="@+id/inputContainer"
-			android:layout_width="match_parent" android:layout_height="wrap_content" />
--->
 		<include layout="@layout/outputcontainer" android:id="@+id/outputContainer"
 			android:layout_width="match_parent" android:layout_height="wrap_content" />
 	</FrameLayout>

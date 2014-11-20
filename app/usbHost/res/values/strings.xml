@@ -11,4 +11,5 @@
 	<string name="off">Off</string>
 	<string name="on">On</string>
 	<string name="sendHexFileLabel">Send Hex File</string>
+	<string name="setSettingsLabel">Set Settings</string>
 </resources>

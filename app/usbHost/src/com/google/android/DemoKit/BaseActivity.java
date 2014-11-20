@@ -60,7 +60,7 @@ public class BaseActivity extends DemoKitActivity {
 //		mInputController.accessoryAttached();
 	}
 
-	protected void handleJoyMessage(JoyMsg j) {
+/*	protected void handleJoyMessage(JoyMsg j) {
 //		if (mInputController != null) {
 			//mInputController.joystickMoved(j.getX(), j.getY());
 //		}
@@ -77,9 +77,9 @@ public class BaseActivity extends DemoKitActivity {
 //			mInputController.setTemperature(t.getTemperature());
 //		}
 	}
-
-	protected void handleSwitchMessage(SwitchMsg o) {
-/*		if (mInputController != null) {
+*/
+/*	protected void handleSwitchMessage(SwitchMsg o) {
+		if (mInputController != null) {
 			byte sw = o.getSw();
 			if (sw >= 0 && sw < 4) {
 				mInputController.switchStateChanged(sw, o.getState() != 0);
@@ -88,6 +88,6 @@ public class BaseActivity extends DemoKitActivity {
 						.joystickButtonSwitchStateChanged(o.getState() != 0);
 			}
 		}
-*/	}
-
+	}
+*/
 }

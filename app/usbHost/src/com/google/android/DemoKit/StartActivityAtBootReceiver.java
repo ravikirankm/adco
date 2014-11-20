@@ -14,7 +14,7 @@ public class StartActivityAtBootReceiver extends BroadcastReceiver {
 		Toast.makeText(context, "Inside onReceive of StartActivityAtBootReceiver", Toast.LENGTH_SHORT).show();
 		
 		if (Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
-            Intent activityIntent = new Intent(context, DemoKitLaunch.class);
+            Intent activityIntent = new Intent(context, DemoKitActivity.class);
             activityIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
 
 			try {

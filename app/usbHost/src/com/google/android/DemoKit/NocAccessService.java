@@ -2,11 +2,13 @@ package com.google.android.DemoKit;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -15,75 +17,97 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.DefaultHttpClient;
 
 import android.content.Intent;
+import android.os.AsyncTask;
 import android.os.Binder;
 import android.os.IBinder;
+import android.os.Message;
 import android.os.Parcel;
-import android.widget.Toast;
 
 public class NocAccessService extends InternetAccessService {
 	
-    // Binder given to clients
-    private final IBinder mBinder = new LocalBinder();
-	
-	/**
-     * Class used for the client Binder.  Because we know this service always
-     * runs in the same process as its clients, we don't need to deal with IPC.
-     */
-    public class LocalBinder extends Binder {
-        NocAccessService getService() {
-            // Return this instance of LocalService so clients can call public methods
-            return NocAccessService.this;
-        }
+    public void doOnIncomingMsg(Message msg) {
+    	switch (msg.what) {
+    		case (NocMessages.URL_MSG): 
+    			String url = msg.getData().getString("url");
+    			uploadSensorData(url);
+    			break;
+    		default:  
+    			super.doOnIncomingMsg(msg);
+    			break;
+    	}
     }
 	
-	@Override
-	public IBinder onBind(Intent intent) {
-		return mBinder;
-	}
-
 	public boolean uploadSensorData(String url) {
 		
 		// check for internet connection
-		if(isConnected) {
+//		if(isConnected) {
+//		HttpResponse response = null;
 			
-			HttpClient httpclient = new DefaultHttpClient();
+		// Create an Async Task
+		AsyncTask<String, Void, Boolean> urlRequestTask = new AsyncTask<String, Void, Boolean> () {
+			protected Boolean doInBackground(String... urls) {
+				int count = urls.length;
+				for(int i = 0; i< count; i++) {
+					try {
+						if(urls[i] != null) {
+							sendClientDebugMsg("Getting default HttpClient... ");
+							HttpClient httpclient = new DefaultHttpClient();
+							// Prepare a request object
+							sendClientDebugMsg("Getting HttpGet... ");
+							HttpGet httpget = new HttpGet(urls[i]); 
+							sendClientDebugMsg("Sending Req: " + urls[i]);
+							HttpResponse response = httpclient.execute(httpget);
 
-			// Prepare a request object
-			HttpGet httpget = new HttpGet(url); 
+							if(response != null) {
+								sendClientDebugMsg("Got Response: " + response.getStatusLine().toString());
+							} else {
+								sendClientDebugMsg("Got Null Response for HTTP request");
+								return false;
+							}
+							
+							// Execute the request
+							try {
+								// Get hold of the response entity
+								HttpEntity entity = response.getEntity();
+									// If the response does not enclose an entity, there is no need
+									// to worry about connection release
 
-			// Execute the request
-			HttpResponse response;
-			try {
-				Toast.makeText(getApplicationContext(), "Sending Req: " + url, Toast.LENGTH_SHORT).show();
-				
-				response = httpclient.execute(httpget);
-				// Examine the response status
-				Toast.makeText(getApplicationContext(), "Got Response: " + response.getStatusLine().toString(), Toast.LENGTH_SHORT).show();
+									if (entity != null) {
 
-				// Get hold of the response entity
-				HttpEntity entity = response.getEntity();
-				// If the response does not enclose an entity, there is no need
-				// to worry about connection release
-
-				if (entity != null) {
-
-					// A Simple JSON Response Read
-					InputStream instream = entity.getContent();
-					String result = convertStreamToString(instream);
-					Toast.makeText(getApplicationContext(), "Got Result: " + result, Toast.LENGTH_SHORT).show();
-					// now you have the string representation of the HTML request
-					instream.close();
+										// A Simple JSON Response Read
+										InputStream instream = entity.getContent();
+										String result = convertStreamToString(instream);
+										sendClientDebugMsg("Got Result: " + result);
+										// now you have the string representation of the HTML request
+										instream.close();
+										return true;
+									}
+							} catch (Exception e) {
+								sendClientDebugMsg("Got Exception: " + e);
+							}
+						}
+					}
+					catch (IOException e) {
+						sendClientDebugMsg("Got IO Exception when trying to Http to NOC");
+					}
 				}
-
-
-			} catch (Exception e) {}
-			
-		} else {
-			Toast.makeText(getApplicationContext(), "isConnected is false", Toast.LENGTH_SHORT).show();
-			return false;
+				return false;
+			}
+		};
+		
+		String [] urls = new String[1];
+		urls[0] = url;
+		
+		urlRequestTask.execute(urls);
+		
+/*		try {
+			return urlRequestTask.get(10, TimeUnit.SECONDS);
+			// Examine the response status
+		} 
+		catch (Exception e){
+			sendClientDebugMsg("Got Timeout when trying to do an Http request");
 		}
-
-		return false;
+*/		return false;
 
 	}
 	

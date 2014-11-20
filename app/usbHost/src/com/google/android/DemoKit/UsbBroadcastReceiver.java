@@ -12,9 +12,9 @@ import android.widget.Toast;
 
 public class UsbBroadcastReceiver extends BroadcastReceiver {
 
-	AccessoryController mAccessoryController;
+	MegaADKController mAccessoryController;
 	
-	public UsbBroadcastReceiver(AccessoryController controller){
+	public UsbBroadcastReceiver(MegaADKController controller){
 		mAccessoryController = controller;
 	}
 	
@@ -23,9 +23,9 @@ public class UsbBroadcastReceiver extends BroadcastReceiver {
 		String action = intent.getAction();
 		Toast.makeText(context, "Inside onReceive of UsbBroadcastReceiver (action = " + action + ")", Toast.LENGTH_SHORT).show();
 
-		UsbManager mUsbManager = (UsbManager) context.getSystemService(Context.USB_SERVICE);
+//		UsbManager mUsbManager = (UsbManager) context.getSystemService(Context.USB_SERVICE);
 		
-		if (MegaADKController.ACTION_USB_PERMISSION.equals(action)) {
+/*		if (MegaADKController.ACTION_USB_PERMISSION.equals(action)) {
 //			synchronized (this) {
 				
 				UsbAccessory[] accessories = mUsbManager.getAccessoryList();
@@ -38,9 +38,12 @@ public class UsbBroadcastReceiver extends BroadcastReceiver {
 					Toast.makeText(context, "EXTRA_PERMISSION_GRANTED is false", Toast.LENGTH_SHORT).show();
 				}
 //			}
-		} else if (UsbManager.ACTION_USB_ACCESSORY_DETACHED.equals(action)) {
-			UsbAccessory[] accessories = mUsbManager.getAccessoryList();
+		} else 
+*/			
+		if (UsbManager.ACTION_USB_ACCESSORY_DETACHED.equals(action)) {
+/*			UsbAccessory[] accessories = mUsbManager.getAccessoryList();
 			UsbAccessory accessory = (accessories == null ? null : accessories[0]);
+*/
 //			if (accessory != null && accessory.equals(mAccessoryController.getAccessory())) {
 				mAccessoryController.closeAccessory();
 //			}
